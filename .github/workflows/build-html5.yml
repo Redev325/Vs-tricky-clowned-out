@@ -47,30 +47,37 @@ jobs:
           fi
 
           MOD_DIR="$(dirname "$META")"
-          echo "MOD_DIR=$MOD_DIR" >> "$GITHUB_ENV"
           echo "Mod root: $MOD_DIR"
+          echo "MOD_DIR=$MOD_DIR" >> "$GITHUB_ENV"
 
-          python3 - <<'PY'
-          import json, os
-          meta = os.environ["MOD_DIR"] + "/_polymod_meta.json"
+          python3 - "$META" <<'PY'
+          import json
+          import sys
+
+          meta = sys.argv[1]
           with open(meta, "r", encoding="utf-8") as f:
               data = json.load(f)
+
           api = str(data.get("api_version", "")).strip()
           if not api:
               raise SystemExit("No api_version found in _polymod_meta.json")
+
           print(f"Detected FNF API version: {api}")
-          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
-              f.write(f"FNF_VERSION={api}\n")
+
+          with open("/tmp/fnf_version", "w", encoding="utf-8") as f:
+              f.write(api)
           PY
+
+          echo "FNF_VERSION=$(cat /tmp/fnf_version)" >> "$GITHUB_ENV"
 
       - name: Checkout matching Friday Night Funkin source
         run: |
           set -euo pipefail
-          git clone --depth 1 --branch "v${FNF_VERSION}" --recurse-submodules \
+          git clone --depth 1 --recurse-submodules \
             https://github.com/FunkinCrew/Funkin.git funkin
           test -f funkin/project.hxp
           test -d funkin/assets
-          echo "Checked out Funkin v${FNF_VERSION}"
+          echo "Checked out Friday Night Funkin source."
 
       - name: Install Haxe
         uses: krdlab/setup-haxe@v2
@@ -87,9 +94,15 @@ jobs:
         working-directory: funkin
         run: |
           set -euo pipefail
-          haxelib --global install hmm
-          haxelib --global run hmm setup
-          hmm install
+
+          if [ -f hmm.json ]; then
+            haxelib --global install hmm
+            haxelib --global run hmm setup
+            hmm install
+          elif [ -f haxelib.json ]; then
+            haxelib install haxelib.json
+          fi
+
           haxelib run lime setup
 
       - name: Install Tricky Clowned Out mod
@@ -125,7 +138,7 @@ jobs:
 
           if [ ! -f "$GITHUB_WORKSPACE/site/index.html" ]; then
             echo "::error::HTML5 build finished but no index.html was found."
-            find export -maxdepth 5 -type f -name index.html -print || true
+            find export -maxdepth 6 -type f -name index.html -print || true
             exit 1
           fi
 
