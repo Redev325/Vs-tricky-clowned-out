@@ -11,3 +11,25 @@ Or at [Gamebanana](https://gamebanana.com/mods/714051)
 Hope you enjoy this mod you can fork it or whatever
 # Creators
 All respects and credits go to creators of the mod because they built it and are very good at what they do 
+# Directors
+• Banbuds – Director, Main Artist, Animator
+• Marc Cea – Co-Director, Secondary Artist, Animator, Programming, Sound Design, Composing
+# Contributors & Developers
+• fiffi the yoshi-sloth – Programming
+• Luscious77 – Programming
+• Az989YT – Menucore Experimenting
+• Rozebud – Original OST
+• JADS – Composer
+• YingYang48 – MISC. Music
+• Mkv8 – Background Artist
+• ChubbyGamer464 – Charter
+• Weretoons – Cutscene Animator
+• Tri-Dot – Assault Tricky Sprite
+• Braced Yeti – Promo Artist
+• KaosKurve – Logo Artist
+• Tsuraran – Chicken Dance Remix
+• harveyzstuff – Pixel icons for base game side
+# Special Thanks
+• EEF! – Original Tricky 2025/2026 director support
+• Krinkels – Madness Combat series creator / owner
+• TPM Studios – Moral Support
