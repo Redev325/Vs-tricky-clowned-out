@@ -1,0 +1,11 @@
+class hellNote extends ScriptedNoteKind {
+
+    function new() {
+        super("hellNote", "[Tricky] Hell Note", "hellNote");
+        this.scoreable = false;
+    }
+    
+    function onNoteMiss(callback) {
+	    callback.cancelEvent();
+	}
+}
