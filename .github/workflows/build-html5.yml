@@ -22,6 +22,18 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Start diagnostics
+        run: |
+          set -u
+          mkdir -p "$GITHUB_WORKSPACE/ci-logs"
+          {
+            echo "=== GitHub Actions diagnostic ==="
+            date -u
+            echo "Runner: $RUNNER_OS"
+            echo "Repository: $GITHUB_REPOSITORY"
+            echo "Commit: $GITHUB_SHA"
+          } | tee "$GITHUB_WORKSPACE/ci-logs/environment.txt"
+
       - name: Download Tricky Clowned Out mod
         env:
           GH_TOKEN: ${{ github.token }}
@@ -31,8 +43,9 @@ jobs:
           gh release download v1.0.0 \
             --repo "${GITHUB_REPOSITORY}" \
             --pattern "TrickyClownedOut.zip" \
-            --dir source
+            --dir source 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/download.log"
           test -s source/TrickyClownedOut.zip
+          ls -lh source/TrickyClownedOut.zip | tee -a "$GITHUB_WORKSPACE/ci-logs/download.log"
 
       - name: Extract and locate mod
         run: |
@@ -70,14 +83,22 @@ jobs:
 
           echo "FNF_VERSION=$(cat /tmp/fnf_version)" >> "$GITHUB_ENV"
 
+          {
+            echo "=== Mod inventory ==="
+            echo "META=$META"
+            echo "MOD_DIR=$MOD_DIR"
+            echo "FNF_VERSION=$(cat /tmp/fnf_version)"
+            find "$MOD_DIR" -maxdepth 2 -type f | head -n 100
+          } | tee "$GITHUB_WORKSPACE/ci-logs/mod.txt"
+
       - name: Checkout matching Friday Night Funkin source
         run: |
           set -euo pipefail
           git clone --depth 1 --recurse-submodules \
-            https://github.com/FunkinCrew/Funkin.git funkin
+            https://github.com/FunkinCrew/Funkin.git funkin 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/checkout.log"
           test -f funkin/project.hxp
           test -d funkin/assets
-          echo "Checked out Friday Night Funkin source."
+          git -C funkin rev-parse HEAD | tee -a "$GITHUB_WORKSPACE/ci-logs/checkout.log"
 
       - name: Install Haxe
         uses: krdlab/setup-haxe@v2
@@ -87,34 +108,74 @@ jobs:
       - name: Prepare Haxelib
         run: |
           set -euo pipefail
+          {
+            echo "=== Tool versions ==="
+            haxe --version
+            neko --version || true
+            haxelib version
+          } | tee "$GITHUB_WORKSPACE/ci-logs/tools-before.txt"
+
           mkdir -p "$HOME/haxelib"
-          haxelib setup "$HOME/haxelib"
+          haxelib setup "$HOME/haxelib" 2>&1 | tee "$GITHUB_WORKSPACE/ci-logs/haxelib-setup.log"
 
       - name: Install Funkin dependencies
         working-directory: funkin
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          LOG="$GITHUB_WORKSPACE/ci-logs/dependencies.log"
 
-          # FNF's official build instructions use HMM to install the
-          # exact dependency versions pinned by hmm.json.
-          #
-          # Use the patched Haxe package manager and HMM recommended
-          # by the FNF project for CI environments.
-          haxelib --global git haxelib https://github.com/FunkinCrew/haxelib.git
-          haxelib --global git hmm https://github.com/FunkinCrew/hmm.git
+          exec > >(tee -a "$LOG") 2>&1
 
-          haxelib --global run hmm setup
+          echo "=== Dependency installation started ==="
+          echo "Working directory: $(pwd)"
+          echo "Haxe: $(haxe --version)"
+          echo "Haxelib: $(haxelib version)"
+
+          status=0
+
+          echo "=== Installing patched haxelib ==="
+          if ! haxelib --global git haxelib https://github.com/FunkinCrew/haxelib.git; then
+            echo "::error::Patched haxelib installation failed"
+            status=1
+          fi
+
+          echo "=== Installing HMM ==="
+          if ! haxelib --global git hmm https://github.com/FunkinCrew/hmm.git; then
+            echo "::error::HMM installation failed"
+            status=1
+          fi
+
+          echo "=== HMM setup ==="
+          if ! haxelib --global run hmm setup; then
+            echo "::error::HMM setup failed"
+            status=1
+          fi
 
           if [ ! -f hmm.json ]; then
             echo "::error::Funkin source is missing hmm.json"
-            exit 1
+            status=1
+          else
+            echo "=== hmm.json found ==="
+            head -n 80 hmm.json || true
           fi
 
-          # Install every dependency pinned by this exact Funkin checkout.
-          haxelib --global run hmm install
+          echo "=== HMM install ==="
+          if ! haxelib --global run hmm install; then
+            echo "::error::HMM dependency installation failed"
+            status=1
+          fi
 
-          # Finish Lime setup for the HTML5 target.
-          haxelib run lime setup
+          echo "=== Haxelib list after HMM ==="
+          haxelib list || true
+
+          echo "=== Lime setup ==="
+          if ! haxelib run lime setup; then
+            echo "::error::Lime setup failed"
+            status=1
+          fi
+
+          echo "=== Dependency installation finished with status: $status ==="
+          exit "$status"
 
       - name: Install Tricky Clowned Out mod
         run: |
@@ -123,14 +184,27 @@ jobs:
           rm -rf funkin/mods/TrickyClownedOut
           cp -a "$MOD_DIR" funkin/mods/TrickyClownedOut
           test -f funkin/mods/TrickyClownedOut/_polymod_meta.json
+          {
+            echo "=== Installed mod ==="
+            du -sh funkin/mods/TrickyClownedOut
+            find funkin/mods/TrickyClownedOut -maxdepth 2 -type f | head -n 100
+          } | tee "$GITHUB_WORKSPACE/ci-logs/mod-installed.txt"
 
       - name: Build HTML5 release
         working-directory: funkin
         run: |
-          set -euo pipefail
+          set -uo pipefail
+          LOG="$GITHUB_WORKSPACE/ci-logs/build.log"
+          exec > >(tee -a "$LOG") 2>&1
+          echo "=== HTML5 build started ==="
+          set +e
           haxelib run lime build html5 -final
+          status=$?
+          echo "=== HTML5 build exit code: $status ==="
+          exit "$status"
 
       - name: Locate HTML5 output
+        if: success()
         working-directory: funkin
         run: |
           set -euo pipefail
@@ -154,12 +228,22 @@ jobs:
           fi
 
       - name: Upload Pages artifact
+        if: success()
         uses: actions/upload-pages-artifact@v3
         with:
           path: site
 
+      - name: Upload diagnostic logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tricky-clowned-out-ci-logs
+          path: ci-logs
+          if-no-files-found: warn
+
   deploy:
     needs: build
+    if: success()
     runs-on: ubuntu-latest
     environment:
       name: github-pages
