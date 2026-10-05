@@ -150,15 +150,29 @@ jobs:
             popd
           fi
 
-          echo "=== Setup and rebuild pinned Lime ==="
-          # Do NOT copy an unrelated Lime NDLL into the Git checkout.
-          # The native binary must match the exact Lime source pinned by hmm.json.
-          haxelib --always run lime setup
-          haxelib run lime rebuild hxcpp
+          echo "=== Rebuild pinned Lime native binary ==="
+          # HMM intentionally installs Lime from Git, which does not include
+          # Lime's prebuilt NDLL. Build the NDLL from the exact pinned source
+          # before invoking any Lime command that loads it.
+          #
+          # Lime documents "lime rebuild cpp" as the advanced path for this
+          # situation.
           haxelib run lime rebuild cpp -64
 
+          echo "=== Verify Lime native binary ==="
+          LIME_NDLL="$(find .haxelib/lime/git/ndll/Linux64 .haxelib/lime/git/ndll/Linux -type f -name 'lime.ndll' -print -quit 2>/dev/null || true)"
+          if [ -z "$LIME_NDLL" ]; then
+            echo "::error::Pinned Lime rebuild completed without producing lime.ndll"
+            find .haxelib/lime/git/ndll -maxdepth 3 -type f -print 2>/dev/null || true
+            exit 1
+          fi
+          echo "Built matching Lime native binary: $LIME_NDLL"
+
+          echo "=== Lime setup ==="
+          haxelib run lime setup
+
           echo "=== Lime native files ==="
-          find .haxelib/lime/git/ndll/Linux64 -maxdepth 1 -type f -printf '%f\n' 2>/dev/null || true
+          find .haxelib/lime/git/ndll/Linux64 .haxelib/lime/git/ndll/Linux -maxdepth 1 -type f -printf '%f\n' 2>/dev/null || true
 
       - name: Install Tricky Clowned Out mod
         run: |
