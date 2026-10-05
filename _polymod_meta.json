@@ -1,0 +1,15 @@
+{
+  "title": "Tricky",
+  "description": "CLOWN IS BACK",
+  "contributors": [
+    {
+     "name": "Marc Cea",
+     "role": "Director, Musician, Artist",
+     "url": "https://x.com/Marc_Cea_Real"
+    }
+],
+  "api_version": "0.8.4",
+  "mod_version": "1.0.0",
+  "license": "Apache-2.0",
+  "dependencies": { } 
+}
