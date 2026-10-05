@@ -95,14 +95,25 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ -f hmm.json ]; then
-            haxelib --global install hmm
-            haxelib --global run hmm setup
-            hmm install
-          elif [ -f haxelib.json ]; then
-            haxelib install haxelib.json
+          # FNF's official build instructions use HMM to install the
+          # exact dependency versions pinned by hmm.json.
+          #
+          # Use the patched Haxe package manager and HMM recommended
+          # by the FNF project for CI environments.
+          haxelib --global git haxelib https://github.com/FunkinCrew/haxelib.git
+          haxelib --global git hmm https://github.com/FunkinCrew/hmm.git
+
+          haxelib --global run hmm setup
+
+          if [ ! -f hmm.json ]; then
+            echo "::error::Funkin source is missing hmm.json"
+            exit 1
           fi
 
+          # Install every dependency pinned by this exact Funkin checkout.
+          haxelib --global run hmm install
+
+          # Finish Lime setup for the HTML5 target.
           haxelib run lime setup
 
       - name: Install Tricky Clowned Out mod
