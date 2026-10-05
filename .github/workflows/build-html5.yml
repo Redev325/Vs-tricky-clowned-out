@@ -168,9 +168,49 @@ jobs:
           echo "=== Haxelib list after HMM ==="
           haxelib list || true
 
+          echo "=== Repair pinned Lime native tools ==="
+          # HMM installs Funkin's pinned Lime from Git. Git installs may not
+          # include the prebuilt Linux NDLLs that Lime needs to start.
+          # Install the current Haxelib Lime package solely as a source for
+          # those packaged native binaries, without replacing the pinned
+          # project dependency.
+
+          if ! haxelib --global install lime 8.3.1; then
+            echo "::error::Could not download Lime 8.3.1 from Haxelib"
+            status=1
+          fi
+
+          ACTIVE_LIME="$(haxelib libpath lime 2>/dev/null || true)"
+          if [ -z "$ACTIVE_LIME" ]; then
+            echo "::error::Could not determine the active project Lime path"
+            status=1
+          else
+            echo "Active project Lime: $ACTIVE_LIME"
+
+            RELEASE_LIME_NDLL="$(find "$HOME/haxelib/lime" -type f -path "*/ndll/Linux64/lime.ndll" -print -quit 2>/dev/null || true)"
+            if [ -z "$RELEASE_LIME_NDLL" ]; then
+              echo "::error::Could not find packaged Linux64/lime.ndll in the Haxelib Lime install"
+              find "$HOME/haxelib/lime" -maxdepth 5 -type f -name "lime.ndll" -print 2>/dev/null || true
+              status=1
+            else
+              echo "Using packaged Lime native binary: $RELEASE_LIME_NDLL"
+              mkdir -p "$ACTIVE_LIME/ndll/Linux64"
+              cp -a "$(dirname "$RELEASE_LIME_NDLL")"/. "$ACTIVE_LIME/ndll/Linux64/"
+            fi
+          fi
+
+          echo "=== Lime native files ==="
+          find "$ACTIVE_LIME/ndll/Linux64" -maxdepth 1 -type f -printf '%f\n' 2>/dev/null || true
+
           echo "=== Lime setup ==="
-          if ! haxelib run lime setup; then
+          if ! haxelib --always run lime setup; then
             echo "::error::Lime setup failed"
+            status=1
+          fi
+
+          # Keep Lime's native tooling usable for CI builds.
+          if ! haxelib run lime rebuild hxcpp; then
+            echo "::error::Lime hxcpp rebuild failed"
             status=1
           fi
 
