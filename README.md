@@ -5,5 +5,5 @@ This mod was build using haxeflixel
 Web port by Redev325 or smth
 # Where to download Vs tricky clowned out
 you can find VS tricky:clowned out at [Google drive](https://drive.google.com/drive/folders/1HBD2wQMkeTf52qFep38rjUJuqwacNZWA)
-Or at Gamebanana [Visit Gamebanana](https://gamebanana.com/mods/714051)
+Or at [Gamebanana](https://gamebanana.com/mods/714051)
 Hope you enjoy this mod you can fork it or whatever
