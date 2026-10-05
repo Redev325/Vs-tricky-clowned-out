@@ -1,0 +1,117 @@
+name: Build Tricky Clowned Out HTML5
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-html5.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download source release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          mkdir -p source
+          gh release download v1.0.0 \
+            --repo "${GITHUB_REPOSITORY}" \
+            --pattern "TrickyClownedOut.zip" \
+            --dir source
+
+      - name: Extract source
+        run: |
+          set -euo pipefail
+          mkdir -p project
+          unzip -q source/TrickyClownedOut.zip -d project
+
+          echo "Project files found:"
+          find project -maxdepth 4 -type f | sed 's#^#  #' | head -n 300
+
+          PROJECT_XML="$(find project -name project.xml -type f -print -quit || true)"
+          if [ -z "$PROJECT_XML" ]; then
+            echo "::error::No project.xml was found in TrickyClownedOut.zip"
+            exit 1
+          fi
+
+          PROJECT_DIR="$(dirname "$PROJECT_XML")"
+          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+
+      - name: Install Haxe and Neko
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y haxe neko
+
+      - name: Prepare Haxelib
+        run: |
+          set -euo pipefail
+          mkdir -p "$HOME/haxelib"
+          haxelib setup "$HOME/haxelib"
+          haxelib --global run lix setup || true
+          cd "$PROJECT_DIR"
+
+          if [ -f haxelib.json ]; then
+            echo "haxelib.json detected."
+          fi
+
+      - name: Install project dependencies
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+
+          if command -v lix >/dev/null 2>&1 && [ -f lix.toml ]; then
+            lix download
+          else
+            haxelib install lime
+            haxelib install openfl
+            haxelib install flixel
+          fi
+
+          haxelib run lime setup
+
+      - name: Build HTML5
+        run: |
+          set -euo pipefail
+          cd "$PROJECT_DIR"
+          haxelib run lime build html5 -final
+
+      - name: Locate HTML5 output
+        run: |
+          set -euo pipefail
+          mkdir -p site
+
+          for candidate in \
+            "export/release/html5/bin" \
+            "export/release/html5" \
+            "build/html5/bin"; do
+            if [ -d "$candidate" ]; then
+              cp -a "$candidate"/. site/
+              break
+            fi
+          done
+
+          if [ ! -f site/index.html ]; then
+            FOUND="$(find . -type f -name index.html -print -quit || true)"
+            if [ -n "$FOUND" ]; then
+              ROOT="$(dirname "$FOUND")"
+              cp -a "$ROOT"/. site/
+            fi
+          fi
+
+          if [ ! -f site/index.html ]; then
+            echo "::error::HTML5 build completed but index.html was not found."
+            exit 1
+          fi
+
+      - name: Upload HTML5 build
+        uses: actions/upload-artifact@v4
+        with:
+          name: tricky-clowned-out-html5
+          path: site
+          if-no-files-found: error
