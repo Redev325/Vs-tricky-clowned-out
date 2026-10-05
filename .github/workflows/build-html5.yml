@@ -5,15 +5,24 @@ on:
   push:
     paths:
       - ".github/workflows/build-html5.yml"
+  release:
+    types: [published]
 
 permissions:
   contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+
     steps:
-      - name: Download source release
+      - name: Download Tricky Clowned Out mod
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -23,95 +32,115 @@ jobs:
             --repo "${GITHUB_REPOSITORY}" \
             --pattern "TrickyClownedOut.zip" \
             --dir source
+          test -s source/TrickyClownedOut.zip
 
-      - name: Extract source
+      - name: Extract and locate mod
         run: |
           set -euo pipefail
-          mkdir -p project
-          unzip -q source/TrickyClownedOut.zip -d project
+          mkdir -p extracted
+          unzip -q source/TrickyClownedOut.zip -d extracted
 
-          echo "Project files found:"
-          find project -maxdepth 4 -type f | sed 's#^#  #' | head -n 300
-
-          PROJECT_XML="$(find project -name project.xml -type f -print -quit || true)"
-          if [ -z "$PROJECT_XML" ]; then
-            echo "::error::No project.xml was found in TrickyClownedOut.zip"
+          META="$(find extracted -type f -name '_polymod_meta.json' -print -quit || true)"
+          if [ -z "$META" ]; then
+            echo "::error::TrickyClownedOut.zip does not contain _polymod_meta.json"
             exit 1
           fi
 
-          PROJECT_DIR="$(dirname "$PROJECT_XML")"
-          echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
+          MOD_DIR="$(dirname "$META")"
+          echo "MOD_DIR=$MOD_DIR" >> "$GITHUB_ENV"
+          echo "Mod root: $MOD_DIR"
 
-      - name: Install Haxe and Neko
+          python3 - <<'PY'
+          import json, os
+          meta = os.environ["MOD_DIR"] + "/_polymod_meta.json"
+          with open(meta, "r", encoding="utf-8") as f:
+              data = json.load(f)
+          api = str(data.get("api_version", "")).strip()
+          if not api:
+              raise SystemExit("No api_version found in _polymod_meta.json")
+          print(f"Detected FNF API version: {api}")
+          with open(os.environ["GITHUB_ENV"], "a", encoding="utf-8") as f:
+              f.write(f"FNF_VERSION={api}\n")
+          PY
+
+      - name: Checkout matching Friday Night Funkin source
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y haxe neko
+          git clone --depth 1 --branch "v${FNF_VERSION}" --recurse-submodules \
+            https://github.com/FunkinCrew/Funkin.git funkin
+          test -f funkin/project.hxp
+          test -d funkin/assets
+          echo "Checked out Funkin v${FNF_VERSION}"
+
+      - name: Install Haxe
+        uses: krdlab/setup-haxe@v2
+        with:
+          haxe-version: 4.3.7
 
       - name: Prepare Haxelib
         run: |
           set -euo pipefail
           mkdir -p "$HOME/haxelib"
           haxelib setup "$HOME/haxelib"
-          haxelib --global run lix setup || true
-          cd "$PROJECT_DIR"
 
-          if [ -f haxelib.json ]; then
-            echo "haxelib.json detected."
-          fi
-
-      - name: Install project dependencies
+      - name: Install Funkin dependencies
+        working-directory: funkin
         run: |
           set -euo pipefail
-          cd "$PROJECT_DIR"
-
-          if command -v lix >/dev/null 2>&1 && [ -f lix.toml ]; then
-            lix download
-          else
-            haxelib install lime
-            haxelib install openfl
-            haxelib install flixel
-          fi
-
+          haxelib --global install hmm
+          haxelib --global run hmm setup
+          hmm install
           haxelib run lime setup
 
-      - name: Build HTML5
+      - name: Install Tricky Clowned Out mod
         run: |
           set -euo pipefail
-          cd "$PROJECT_DIR"
+          mkdir -p funkin/mods
+          rm -rf funkin/mods/TrickyClownedOut
+          cp -a "$MOD_DIR" funkin/mods/TrickyClownedOut
+          test -f funkin/mods/TrickyClownedOut/_polymod_meta.json
+
+      - name: Build HTML5 release
+        working-directory: funkin
+        run: |
+          set -euo pipefail
           haxelib run lime build html5 -final
 
       - name: Locate HTML5 output
+        working-directory: funkin
         run: |
           set -euo pipefail
-          mkdir -p site
+          rm -rf "$GITHUB_WORKSPACE/site"
+          mkdir -p "$GITHUB_WORKSPACE/site"
 
           for candidate in \
             "export/release/html5/bin" \
             "export/release/html5" \
-            "build/html5/bin"; do
-            if [ -d "$candidate" ]; then
-              cp -a "$candidate"/. site/
+            "export/target/html5/bin"; do
+            if [ -f "$candidate/index.html" ]; then
+              cp -a "$candidate"/. "$GITHUB_WORKSPACE/site/"
               break
             fi
           done
 
-          if [ ! -f site/index.html ]; then
-            FOUND="$(find . -type f -name index.html -print -quit || true)"
-            if [ -n "$FOUND" ]; then
-              ROOT="$(dirname "$FOUND")"
-              cp -a "$ROOT"/. site/
-            fi
-          fi
-
-          if [ ! -f site/index.html ]; then
-            echo "::error::HTML5 build completed but index.html was not found."
+          if [ ! -f "$GITHUB_WORKSPACE/site/index.html" ]; then
+            echo "::error::HTML5 build finished but no index.html was found."
+            find export -maxdepth 5 -type f -name index.html -print || true
             exit 1
           fi
 
-      - name: Upload HTML5 build
-        uses: actions/upload-artifact@v4
+      - name: Upload Pages artifact
+        uses: actions/upload-pages-artifact@v3
         with:
-          name: tricky-clowned-out-html5
           path: site
-          if-no-files-found: error
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
