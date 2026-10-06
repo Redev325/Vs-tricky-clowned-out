@@ -163,6 +163,7 @@ jobs:
             libpulse-dev \
             libdbus-1-dev \
             libx11-dev \
+            libxcursor-dev \
             libxext-dev \
             libxi-dev \
             libxrandr-dev \
