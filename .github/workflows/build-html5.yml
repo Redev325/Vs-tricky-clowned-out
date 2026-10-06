@@ -347,7 +347,7 @@ jobs:
         working-directory: funkin
         run: |
           set -euo pipefail
-          grep -n "loadModsByDir(\['TrickyClownedOut'\]\);" source/Main.hx
+          grep -Fn "loadModsByDir(['TrickyClownedOut']);" source/Main.hx
           grep -n 'addAssetPath("assets/mods", "mods", "default"' project.hxp
           grep -n "fs.addZipFile('TrickyClownedOut.zip', modZipBytes);" source/funkin/modding/PolymodHandler.hx
           test -s assets/mods/TrickyClownedOut.zip
