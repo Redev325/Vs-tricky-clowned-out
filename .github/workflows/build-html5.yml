@@ -352,30 +352,69 @@ jobs:
           const { chromium } = require('playwright');
 
           const url = process.env.SITE_URL;
-          const consoleErrors = [];
+          const targetAsset = new URL(
+            '/assets/data/songs/bopeebo/bopeebo-metadata-pico.json',
+            url
+          ).toString();
+
+          const consoleMessages = [];
           const pageErrors = [];
+          const unhandledRejections = [];
           const failedRequests = [];
-          const dialogs = [];
           const badResponses = [];
+          const dialogs = [];
+
+          function errorDetails(value) {
+            if (!value) return 'unknown';
+            if (value.stack) return value.stack;
+            if (value.message) return value.message;
+            return String(value);
+          }
 
           (async () => {
             const browser = await chromium.launch({headless: true});
             const context = await browser.newContext({
-              // This is a diagnostic scanner for the deployed site. The site's
-              // certificate currently does not match its hostname, so allow
-              // Chromium to load it so we can inspect the actual FNF runtime.
               ignoreHTTPSErrors: true
             });
+
+            // Capture browser-level runtime failures as early as possible.
+            await context.addInitScript(() => {
+              window.addEventListener('error', event => {
+                const error = event.error;
+                console.error(
+                  '[window.error] ' +
+                  (error && error.stack ? error.stack : event.message) +
+                  ' @ ' + event.filename + ':' + event.lineno + ':' + event.colno
+                );
+              });
+
+              window.addEventListener('unhandledrejection', event => {
+                const reason = event.reason;
+                console.error(
+                  '[window.unhandledrejection] ' +
+                  (reason && reason.stack ? reason.stack : String(reason))
+                );
+              });
+            });
+
             const page = await context.newPage();
 
             page.on('console', msg => {
               if (msg.type() === 'error' || msg.type() === 'warning') {
-                consoleErrors.push('[console.' + msg.type() + '] ' + msg.text());
+                const location = msg.location();
+                const line =
+                  '[console.' + msg.type() + '] ' + msg.text() +
+                  (location && location.url
+                    ? ' @ ' + location.url + ':' + location.lineNumber + ':' + location.columnNumber
+                    : '');
+                consoleMessages.push(line);
               }
             });
 
             page.on('pageerror', err => {
-              pageErrors.push('[pageerror] ' + err.message);
+              pageErrors.push(
+                '[pageerror] ' + errorDetails(err)
+              );
             });
 
             page.on('requestfailed', request => {
@@ -387,7 +426,9 @@ jobs:
 
             page.on('response', response => {
               if (response.status() >= 500) {
-                badResponses.push('[http-' + response.status() + '] ' + response.url());
+                badResponses.push(
+                  '[http-' + response.status() + '] ' + response.url()
+                );
               }
             });
 
@@ -408,15 +449,60 @@ jobs:
 
               console.log('HTTP status: ' + (response ? response.status() : 'unknown'));
 
-              // Allow the FNF runtime time to initialize and throw mod/script errors.
+              // Let FNF initialize, load scripts, and execute the mod.
               await page.waitForTimeout(15000);
 
+              // Explicitly test the asset that previously returned HTTP 503.
+              console.log('=== Target asset retry test ===');
+              for (let attempt = 1; attempt <= 3; attempt++) {
+                try {
+                  const result = await page.evaluate(async assetUrl => {
+                    const response = await fetch(
+                      assetUrl + '?ci_diagnostic=' + Date.now() + '_' + Math.random(),
+                      {
+                        cache: 'no-store',
+                        credentials: 'include'
+                      }
+                    );
+
+                    let bodyPreview = '';
+                    try {
+                      bodyPreview = (await response.text()).slice(0, 300);
+                    } catch {}
+
+                    return {
+                      status: response.status,
+                      statusText: response.statusText,
+                      contentType: response.headers.get('content-type'),
+                      bodyPreview
+                    };
+                  }, targetAsset);
+
+                  console.log(
+                    'Attempt ' + attempt +
+                    ': HTTP ' + result.status + ' ' + result.statusText +
+                    ', content-type=' + result.contentType +
+                    ', body-preview=' + JSON.stringify(result.bodyPreview)
+                  );
+                } catch (error) {
+                  console.log(
+                    'Attempt ' + attempt + ': fetch exception: ' + errorDetails(error)
+                  );
+                }
+
+                if (attempt < 3) {
+                  await page.waitForTimeout(2000);
+                }
+              }
+
+              console.log('=== Page state ===');
               console.log('Final URL: ' + page.url());
               console.log('Title: ' + await page.title().catch(() => ''));
 
               console.log('=== Counts ===');
-              console.log('console errors/warnings: ' + consoleErrors.length);
+              console.log('console errors/warnings: ' + consoleMessages.length);
               console.log('page errors: ' + pageErrors.length);
+              console.log('unhandled rejections: ' + unhandledRejections.length);
               console.log('failed requests: ' + failedRequests.length);
               console.log('dialogs: ' + dialogs.length);
               console.log('HTTP 5xx responses: ' + badResponses.length);
@@ -427,13 +513,18 @@ jobs:
               }
 
               if (pageErrors.length) {
-                console.log('=== Page errors ===');
+                console.log('=== Page errors with stacks ===');
                 pageErrors.forEach(x => console.log(x));
               }
 
-              if (consoleErrors.length) {
-                console.log('=== Console errors/warnings ===');
-                consoleErrors.forEach(x => console.log(x));
+              if (unhandledRejections.length) {
+                console.log('=== Unhandled rejections ===');
+                unhandledRejections.forEach(x => console.log(x));
+              }
+
+              if (consoleMessages.length) {
+                console.log('=== Console errors/warnings with locations ===');
+                consoleMessages.forEach(x => console.log(x));
               }
 
               if (failedRequests.length) {
@@ -451,7 +542,7 @@ jobs:
                 fullPage: true
               }).catch(() => {});
             } catch (err) {
-              console.log('[scanner] ' + (err.stack || err));
+              console.log('[scanner] ' + errorDetails(err));
               await page.screenshot({
                 path: 'website-scan/website-failure.png',
                 fullPage: true
