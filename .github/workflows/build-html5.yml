@@ -171,7 +171,7 @@ jobs:
           project = Path("project.hxp")
           project_text = project.read_text(encoding="utf-8")
           project_anchor = '     addAssetPath("assets/preload", "assets", "default", ["*"], exclude, shouldEmbed, "assets");'
-          project_replacement = project_anchor + '\\n     addAssetPath("assets/mods", "mods", "default", ["*.zip"], [], true, "assets");'
+          project_replacement = project_anchor + "\n     addAssetPath(\"assets/mods\", \"mods\", \"default\", [\"*.zip\"], [], true, \"assets\");"
           if project_anchor not in project_text:
               raise SystemExit("Could not find default asset path in project.hxp")
           if 'addAssetPath("assets/mods", "mods", "default"' not in project_text:
@@ -343,10 +343,14 @@ jobs:
       - name: Install Tricky Clowned Out mod
         run: |
           set -euo pipefail
-          mkdir -p funkin/mods
+          mkdir -p funkin/mods funkin/assets/mods
           rm -rf funkin/mods/TrickyClownedOut
           cp -a "$MOD_DIR" funkin/mods/TrickyClownedOut
           test -f funkin/mods/TrickyClownedOut/_polymod_meta.json
+
+          # The HTML5 Polymod filesystem reads the mod from this embedded ZIP.
+          cp source/TrickyClownedOut.zip funkin/assets/mods/TrickyClownedOut.zip
+          test -s funkin/assets/mods/TrickyClownedOut.zip
           {
             echo "=== Installed mod ==="
             du -sh funkin/mods/TrickyClownedOut
