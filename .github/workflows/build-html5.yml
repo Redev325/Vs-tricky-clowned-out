@@ -156,13 +156,31 @@ jobs:
           # Force that mod to be the enabled mod instead of relying on browser save data.
           handler = Path("source/funkin/modding/PolymodHandler.hx")
           handler_text = handler.read_text(encoding="utf-8")
-          load_all_anchor = "  public static function loadAllMods():Void\\n  {\\n    #if sys\\n    // Create the mod root if it doesn't exist.\\n    createModRoot();\\n    #end\\n    trace('Initializing Polymod (using all mods)...');\\n    loadModsByDir(getAllModDirs());\\n  }"
-          load_all_forced = "  public static function loadAllMods():Void\\n  {\\n    #if sys\\n    // Create the mod root if it doesn't exist.\\n    createModRoot();\\n    #end\\n    #if html5\\n    trace('Initializing Polymod (forcing TrickyClownedOut)...');\\n    loadModsByDir(['TrickyClownedOut']);\\n    #else\\n    trace('Initializing Polymod (using all mods)...');\\n    loadModsByDir(getAllModDirs());\\n    #end\\n  }"
-          if load_all_anchor not in handler_text:
+
+          # Force the dedicated HTML5 build to load the Tricky mod directly.
+          # Use a regex here so whitespace in the upstream FNF source cannot
+          # make this patch fail.
+          import re
+          load_all_pattern = r"  public static function loadAllMods\(\):Void\n  \{\n    #if sys\n    // Create the mod root if it doesn't exist\.\n    createModRoot\(\);\n    #end\n    trace\('Initializing Polymod \(using all mods\)\.\.\.'\);\n    loadModsByDir\(getAllModDirs\(\)\);\n  \}"
+          load_all_forced = """  public static function loadAllMods():Void
+  {
+    #if sys
+    // Create the mod root if it doesn't exist.
+    createModRoot();
+    #end
+    #if html5
+    trace('Initializing Polymod (forcing TrickyClownedOut)...');
+    loadModsByDir(['TrickyClownedOut']);
+    #else
+    trace('Initializing Polymod (using all mods)...');
+    loadModsByDir(getAllModDirs());
+    #end
+  }"""
+          handler_text, replacements = re.subn(load_all_pattern, load_all_forced, handler_text, count=1)
+          if replacements != 1:
               raise SystemExit("Could not find PolymodHandler.loadAllMods()")
-          if load_all_forced not in handler_text:
-              handler_text = handler_text.replace(load_all_anchor, load_all_forced, 1)
-              handler.write_text(handler_text, encoding="utf-8")
+          handler.write_text(handler_text, encoding="utf-8")
+          print("Forced TrickyClownedOut for HTML5.");
 
           # Also make CompiledClassList report the exact unresolved class name.
           compiled = Path("source/funkin/util/macro/CompiledClassList.hx")
