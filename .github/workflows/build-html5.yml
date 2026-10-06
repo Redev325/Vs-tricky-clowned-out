@@ -143,6 +143,22 @@ jobs:
           haxelib --global fixrepo
           haxelib --global list
 
+          echo "=== Verify and patch Lime HTML5 font logging ==="
+          LIME_FONT="$(find .haxelib/lime/git -type f -path '*/src/lime/text/Font.hx' -print -quit 2>/dev/null || true)"
+          if [ -z "$LIME_FONT" ]; then
+            echo "::error::Could not locate Lime's src/lime/text/Font.hx after dependency installation"
+            exit 1
+          fi
+          echo "Lime Font.hx: $LIME_FONT"
+          # Funkin's pinned Lime source calls lime.utils.Log from the HTML5
+          # font loader but does not import it. Haxe otherwise stops with:
+          # "Type not found : Log". Keep this patch local to CI so the
+          # upstream dependency remains untouched.
+          if ! grep -q '^import lime\.utils\.Log;' "$LIME_FONT"; then
+            sed -i '/^import lime\.utils\.Assets;$/a import lime.utils.Log;' "$LIME_FONT"
+          fi
+          grep -n '^import lime\.utils\.Log;' "$LIME_FONT"
+
           echo "=== Build HXCPP helper ==="
           if [ -f .haxelib/hxcpp/git/tools/hxcpp/compile.hxml ]; then
             pushd .haxelib/hxcpp/git/tools/hxcpp
