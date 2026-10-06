@@ -170,7 +170,7 @@ jobs:
           project = Path("project.hxp")
           project_text = project.read_text(encoding="utf-8")
           project_anchor = '    addAssetPath("assets/preload", "assets", "default", ["*"], exclude, shouldEmbed, "assets");'
-          project_replacement = project_anchor + "\n    addAssetPath("assets/mods", "mods", "default", ["*.zip"], [], true, "assets");"
+          project_replacement = project_anchor + '\n    addAssetPath("assets/mods", "mods", "default", ["*.zip"], [], true, "assets");'
           if project_anchor not in project_text:
               raise SystemExit("Could not find default asset path in project.hxp")
           if 'addAssetPath("assets/mods", "mods", "default"' not in project_text:
