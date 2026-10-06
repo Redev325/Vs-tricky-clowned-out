@@ -152,35 +152,56 @@ jobs:
               registry_text = registry_text.replace(registry_anchor, registry_guard, 1)
               registry.write_text(registry_text, encoding="utf-8")
 
-          # On HTML5 this repository is a dedicated build for Tricky Clowned Out.
-          # Force that mod to be the enabled mod instead of relying on browser save data.
+          # This repository is a dedicated Tricky Clowned Out HTML5 build.
+          # Force the game startup to load only the Tricky mod.
+          main = Path("source/Main.hx")
+          main_text = main.read_text(encoding="utf-8")
+          main_anchor = "    funkin.modding.PolymodHandler.loadAllMods();"
+          main_replacement = "    funkin.modding.PolymodHandler.loadModsByDir(['TrickyClownedOut']);"
+          if main_anchor not in main_text:
+              raise SystemExit("Could not find Main.hx Polymod startup call")
+          if main_replacement not in main_text:
+              main_text = main_text.replace(main_anchor, main_replacement, 1)
+              main.write_text(main_text, encoding="utf-8")
+          print("Forced TrickyClownedOut from Main.hx.")
+
+          # HTML5 uses Polymod's in-memory ZIP filesystem. A normal mods/
+          # directory is not visible to that filesystem, so embed the original
+          # mod ZIP as a game asset and inject it into the virtual filesystem.
+          project = Path("project.hxp")
+          project_text = project.read_text(encoding="utf-8")
+          project_anchor = '     addAssetPath("assets/preload", "assets", "default", ["*"], exclude, shouldEmbed, "assets");'
+          project_replacement = project_anchor + '\\n     addAssetPath("assets/mods", "mods", "default", ["*.zip"], [], true, "assets");'
+          if project_anchor not in project_text:
+              raise SystemExit("Could not find default asset path in project.hxp")
+          if 'addAssetPath("assets/mods", "mods", "default"' not in project_text:
+              project_text = project_text.replace(project_anchor, project_replacement, 1)
+              project.write_text(project_text, encoding="utf-8")
+          print("Added embedded Tricky mod ZIP to the default asset library.")
+
           handler = Path("source/funkin/modding/PolymodHandler.hx")
           handler_text = handler.read_text(encoding="utf-8")
-
-          # Force the dedicated HTML5 build to load the Tricky mod directly.
-          # Use a regex here so whitespace in the upstream FNF source cannot
-          # make this patch fail.
-          import re
-          load_all_pattern = r"  public static function loadAllMods\(\):Void\n  \{\n    #if sys\n    // Create the mod root if it doesn't exist\.\n    createModRoot\(\);\n    #end\n    trace\('Initializing Polymod \(using all mods\)\.\.\.'\);\n    loadModsByDir\(getAllModDirs\(\)\);\n  \}"
-          load_all_forced = """  public static function loadAllMods():Void
-  {
-    #if sys
-    // Create the mod root if it doesn't exist.
-    createModRoot();
-    #end
+          fs_anchor = """    polymod.Polymod.onError = PolymodErrorHandler.onPolymodError;
+    return new ZipFileSystem({
+      modRoot: MOD_FOLDER,
+      autoScan: true
+    });"""
+          fs_replacement = """    polymod.Polymod.onError = PolymodErrorHandler.onPolymodError;
+    var fs:polymod.fs.ZipFileSystem = new ZipFileSystem({
+      modRoot: MOD_FOLDER,
+      autoScan: true
+    });
     #if html5
-    trace('Initializing Polymod (forcing TrickyClownedOut)...');
-    loadModsByDir(['TrickyClownedOut']);
-    #else
-    trace('Initializing Polymod (using all mods)...');
-    loadModsByDir(getAllModDirs());
+    var modZipBytes = funkin.Assets.getBytes('mods/TrickyClownedOut.zip');
+    fs.addZipFile('TrickyClownedOut.zip', modZipBytes);
     #end
-  }"""
-          handler_text, replacements = re.subn(load_all_pattern, load_all_forced, handler_text, count=1)
-          if replacements != 1:
-              raise SystemExit("Could not find PolymodHandler.loadAllMods()")
-          handler.write_text(handler_text, encoding="utf-8")
-          print("Forced TrickyClownedOut for HTML5.");
+    return fs;"""
+          if fs_anchor not in handler_text:
+              raise SystemExit("Could not find PolymodHandler.buildFileSystem()")
+          if "fs.addZipFile('TrickyClownedOut.zip', modZipBytes);" not in handler_text:
+              handler_text = handler_text.replace(fs_anchor, fs_replacement, 1)
+              handler.write_text(handler_text, encoding="utf-8")
+          print("Injected Tricky mod ZIP into HTML5 Polymod filesystem.")
 
           # Also make CompiledClassList report the exact unresolved class name.
           compiled = Path("source/funkin/util/macro/CompiledClassList.hx")
@@ -368,20 +389,6 @@ jobs:
             find export -maxdepth 6 -type f -name index.html -print || true
             exit 1
           fi
-
-          # HTML5 does not automatically package the external Polymod mods/ folder.
-          # Bundle the actual Tricky Clowned Out mod beside index.html so the
-          # browser-side Polymod filesystem can discover the forced mod.
-          mkdir -p "$GITHUB_WORKSPACE/site/mods"
-          rm -rf "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut"
-          cp -a "$MOD_DIR" "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut"
-          test -f "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut/_polymod_meta.json"
-          {
-            echo "=== Bundled HTML5 mod ==="
-            du -sh "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut"
-            echo "Metadata:"
-            cat "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut/_polymod_meta.json"
-          } | tee "$GITHUB_WORKSPACE/ci-logs/mod-bundled-site.txt"
 
       - name: Upload Pages artifact
         if: success()
