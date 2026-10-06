@@ -152,6 +152,39 @@ jobs:
               registry_text = registry_text.replace(registry_anchor, registry_guard, 1)
               registry.write_text(registry_text, encoding="utf-8")
 
+          # On HTML5 this repository is a dedicated build for Tricky Clowned Out.
+          # Force that mod to be the enabled mod instead of relying on browser save data.
+          handler = Path("source/funkin/modding/PolymodHandler.hx")
+          handler_text = handler.read_text(encoding="utf-8")
+          load_all_anchor = """  public static function loadAllMods():Void
+  {
+    #if sys
+    // Create the mod root if it doesn't exist.
+    createModRoot();
+    #end
+    trace('Initializing Polymod (using all mods)...');
+    loadModsByDir(getAllModDirs());
+  }"""
+          load_all_forced = """  public static function loadAllMods():Void
+  {
+    #if sys
+    // Create the mod root if it doesn't exist.
+    createModRoot();
+    #end
+    #if html5
+    trace('Initializing Polymod (forcing TrickyClownedOut)...');
+    loadModsByDir(['TrickyClownedOut']);
+    #else
+    trace('Initializing Polymod (using all mods)...');
+    loadModsByDir(getAllModDirs());
+    #end
+  }"""
+          if load_all_anchor not in handler_text:
+              raise SystemExit("Could not find PolymodHandler.loadAllMods()")
+          if load_all_forced not in handler_text:
+              handler_text = handler_text.replace(load_all_anchor, load_all_forced, 1)
+              handler.write_text(handler_text, encoding="utf-8")
+
           # Also make CompiledClassList report the exact unresolved class name.
           compiled = Path("source/funkin/util/macro/CompiledClassList.hx")
           compiled_text = compiled.read_text(encoding="utf-8")
@@ -338,6 +371,20 @@ jobs:
             find export -maxdepth 6 -type f -name index.html -print || true
             exit 1
           fi
+
+          # HTML5 does not automatically package the external Polymod mods/ folder.
+          # Bundle the actual Tricky Clowned Out mod beside index.html so the
+          # browser-side Polymod filesystem can discover the forced mod.
+          mkdir -p "$GITHUB_WORKSPACE/site/mods"
+          rm -rf "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut"
+          cp -a "$MOD_DIR" "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut"
+          test -f "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut/_polymod_meta.json"
+          {
+            echo "=== Bundled HTML5 mod ==="
+            du -sh "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut"
+            echo "Metadata:"
+            cat "$GITHUB_WORKSPACE/site/mods/TrickyClownedOut/_polymod_meta.json"
+          } | tee "$GITHUB_WORKSPACE/ci-logs/mod-bundled-site.txt"
 
       - name: Upload Pages artifact
         if: success()
