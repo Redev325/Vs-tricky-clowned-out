@@ -189,6 +189,7 @@ jobs:
             pkg-config \
             libgl1-mesa-dev \
             libdrm-dev \
+            libgbm-dev \
             libglu1-mesa-dev \
             libasound2-dev \
             libpulse-dev \
