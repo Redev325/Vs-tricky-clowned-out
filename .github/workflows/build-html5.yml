@@ -124,6 +124,19 @@ jobs:
           path = Path("source/funkin/modding/PolymodHandler.hx")
           text = path.read_text(encoding="utf-8")
 
+          # Force the song-event package into the HTML5 binary. The base game
+          # already includes all Funkin classes, but this makes the event cache
+          # independent of Haxe JS reachability/DCE quirks.
+          project_path = Path("project.hxp")
+          project_text = project_path.read_text(encoding="utf-8")
+          include_anchor = '    addHaxeMacro("include(\'funkin\', true, [\'funkin.mobile.*\', \'funkin.ui.debug.anim.*\', \'funkin.ui.debug.charting.*\', \'funkin.ui.debug.stage.*\', \'funkin.ui.debug.stageeditor.*\', \'funkin.ui.haxeui.*\'])")'
+          include_line = '    addHaxeMacro("include(\'funkin.play.event\', true)")'
+          if include_line not in project_text:
+              if include_anchor not in project_text:
+                  raise SystemExit("Could not find project.hxp Funkin include anchor")
+              project_text = project_text.replace(include_anchor, include_anchor + "\\n" + include_line, 1)
+              project_path.write_text(project_text, encoding="utf-8")
+
           anchor = "  static function buildImports():Void\n  {"
           if anchor not in text:
               raise SystemExit("Could not find PolymodHandler.buildImports()")
@@ -138,6 +151,12 @@ jobs:
               print("Added HScript import aliases.")
           else:
               print("HScript import aliases already present.")
+
+          event_anchor = "    for (eventCls in BUILTIN_EVENTS)\n    {\n      var eventClsName:String = Type.getClassName(eventCls);"
+          event_guard = "    for (eventCls in BUILTIN_EVENTS)\n    {\n      // Type.resolveClass() can yield null in HTML5 even when the macro generated the class name.\n      // Skip that one entry instead of crashing the entire game during event-cache startup.\n      if (eventCls == null)\n      {\n        trace(' WARNING: Skipping unresolved built-in song event class.');\n        continue;\n      }\n      var eventClsName:String = Type.getClassName(eventCls);"
+          if event_anchor in text and event_guard not in text:
+              text = text.replace(event_anchor, event_guard, 1)
+              path.write_text(text, encoding="utf-8")
           PY
 
           grep -n -A8 -B2 "legacy mod scripts" source/funkin/modding/PolymodHandler.hx
