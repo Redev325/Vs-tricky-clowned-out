@@ -128,11 +128,11 @@ jobs:
           if anchor not in text:
               raise SystemExit("Could not find PolymodHandler.buildImports()")
 
-          aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);
-    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);
-    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\n"""
+          aliases = """\\n    // Compatibility aliases for legacy mod scripts.\\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\\n    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);\\n    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\\n"""
 
-          if "animate.internal.elements.FlxSpriteElement" not in text:
+          if ("animate.internal.elements.FlxSpriteElement" not in text
+              or "funkin.util.TouchUtil" not in text
+              or "funkin.util.FlxTweenUtil" not in text):
               text = text.replace(anchor, anchor + aliases, 1)
               path.write_text(text, encoding="utf-8")
               print("Added HScript import aliases.")
