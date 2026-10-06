@@ -172,6 +172,7 @@ jobs:
             libxinerama-dev \
             libxss-dev \
             libwayland-dev \
+            libxkbcommon-dev \
             wayland-protocols
 
           command -v wayland-scanner
