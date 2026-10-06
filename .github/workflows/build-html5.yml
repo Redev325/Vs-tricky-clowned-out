@@ -324,6 +324,162 @@ jobs:
           path: ci-logs
           if-no-files-found: warn
 
+  website-scan:
+    needs: deploy
+    if: ${{ needs.deploy.result == 'success' }}
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    env:
+      SITE_URL: https://clownedoutproject.devs.surf/
+    steps:
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Chromium and Playwright
+        run: |
+          set -euo pipefail
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright@1.55.0 >/dev/null 2>&1
+          npx playwright install --with-deps chromium
+
+      - name: Scan live HTML5 website
+        run: |
+          set -u
+          mkdir -p website-scan
+          node > website-scan/browser-errors.txt <<'NODE'
+          const { chromium } = require('playwright');
+
+          const url = process.env.SITE_URL;
+          const consoleErrors = [];
+          const pageErrors = [];
+          const failedRequests = [];
+          const dialogs = [];
+          const badResponses = [];
+
+          (async () => {
+            const browser = await chromium.launch({headless: true});
+            const context = await browser.newContext();
+            const page = await context.newPage();
+
+            page.on('console', msg => {
+              if (msg.type() === 'error' || msg.type() === 'warning') {
+                consoleErrors.push('[console.' + msg.type() + '] ' + msg.text());
+              }
+            });
+
+            page.on('pageerror', err => {
+              pageErrors.push('[pageerror] ' + err.message);
+            });
+
+            page.on('requestfailed', request => {
+              failedRequests.push(
+                '[requestfailed] ' + request.method() + ' ' + request.url() +
+                ' :: ' + (request.failure()?.errorText || 'unknown')
+              );
+            });
+
+            page.on('response', response => {
+              if (response.status() >= 500) {
+                badResponses.push('[http-' + response.status() + '] ' + response.url());
+              }
+            });
+
+            page.on('dialog', async dialog => {
+              dialogs.push('[dialog.' + dialog.type() + '] ' + dialog.message());
+              await dialog.dismiss().catch(() => {});
+            });
+
+            try {
+              console.log('=== Tricky Clowned Out Website Error Scan ===');
+              console.log('URL: ' + url);
+              console.log('Started: ' + new Date().toISOString());
+
+              const response = await page.goto(url, {
+                waitUntil: 'domcontentloaded',
+                timeout: 60000
+              });
+
+              console.log('HTTP status: ' + (response ? response.status() : 'unknown'));
+
+              // Allow the FNF runtime time to initialize and throw mod/script errors.
+              await page.waitForTimeout(15000);
+
+              console.log('Final URL: ' + page.url());
+              console.log('Title: ' + await page.title().catch(() => ''));
+
+              console.log('=== Counts ===');
+              console.log('console errors/warnings: ' + consoleErrors.length);
+              console.log('page errors: ' + pageErrors.length);
+              console.log('failed requests: ' + failedRequests.length);
+              console.log('dialogs: ' + dialogs.length);
+              console.log('HTTP 5xx responses: ' + badResponses.length);
+
+              if (dialogs.length) {
+                console.log('=== JavaScript dialogs ===');
+                dialogs.forEach(x => console.log(x));
+              }
+
+              if (pageErrors.length) {
+                console.log('=== Page errors ===');
+                pageErrors.forEach(x => console.log(x));
+              }
+
+              if (consoleErrors.length) {
+                console.log('=== Console errors/warnings ===');
+                consoleErrors.forEach(x => console.log(x));
+              }
+
+              if (failedRequests.length) {
+                console.log('=== Failed requests ===');
+                failedRequests.forEach(x => console.log(x));
+              }
+
+              if (badResponses.length) {
+                console.log('=== HTTP 5xx ===');
+                badResponses.forEach(x => console.log(x));
+              }
+
+              await page.screenshot({
+                path: 'website-scan/website.png',
+                fullPage: true
+              }).catch(() => {});
+            } catch (err) {
+              console.log('[scanner] ' + (err.stack || err));
+              await page.screenshot({
+                path: 'website-scan/website-failure.png',
+                fullPage: true
+              }).catch(() => {});
+            } finally {
+              await browser.close();
+            }
+          })();
+          NODE
+
+      - name: Write browser errors to Actions summary
+        if: always()
+        run: |
+          set -u
+          {
+            echo "## Tricky Clowned Out website scan"
+            echo ""
+            echo "URL: $SITE_URL"
+            echo ""
+            cat website-scan/browser-errors.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "=== Browser error report ==="
+          cat website-scan/browser-errors.txt
+
+      - name: Upload website error report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: tricky-clowned-out-website-errors
+          path: website-scan
+          if-no-files-found: warn
+
   deploy:
     needs: build
     if: success()
