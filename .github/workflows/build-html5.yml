@@ -114,6 +114,32 @@ jobs:
           git -C funkin describe --tags --always | tee -a "$GITHUB_WORKSPACE/ci-logs/checkout.log"
           git -C funkin rev-parse HEAD | tee -a "$GITHUB_WORKSPACE/ci-logs/checkout.log"
 
+      - name: Patch FNF script import aliases
+        working-directory: funkin
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path("source/funkin/modding/PolymodHandler.hx")
+          text = path.read_text(encoding="utf-8")
+
+          anchor = "  static function buildImports():Void\n  {"
+          if anchor not in text:
+              raise SystemExit("Could not find PolymodHandler.buildImports()")
+
+          aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\n"""
+
+          if "animate.internal.elements.FlxSpriteElement" not in text:
+              text = text.replace(anchor, anchor + aliases, 1)
+              path.write_text(text, encoding="utf-8")
+              print("Added HScript import aliases.")
+          else:
+              print("HScript import aliases already present.")
+          PY
+
+          grep -n -A8 -B2 "legacy mod scripts" source/funkin/modding/PolymodHandler.hx
+
       - name: Install Haxe
         uses: krdlab/setup-haxe@v2
         with:
