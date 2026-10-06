@@ -360,7 +360,12 @@ jobs:
 
           (async () => {
             const browser = await chromium.launch({headless: true});
-            const context = await browser.newContext();
+            const context = await browser.newContext({
+              // This is a diagnostic scanner for the deployed site. The site's
+              // certificate currently does not match its hostname, so allow
+              // Chromium to load it so we can inspect the actual FNF runtime.
+              ignoreHTTPSErrors: true
+            });
             const page = await context.newPage();
 
             page.on('console', msg => {
