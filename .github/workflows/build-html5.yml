@@ -145,7 +145,7 @@ jobs:
       - name: Install Haxe
         uses: krdlab/setup-haxe@v2
         with:
-          haxe-version: 4.3.7
+          haxe-version: 4.3.6
 
       - name: Prepare Haxelib
         run: |
@@ -171,18 +171,21 @@ jobs:
           echo "Haxe: $(haxe --version)"
           echo "Haxelib: $(haxelib version)"
 
-          # Use the repository-local Haxe library repository.
+          # Match the Haxe/HMM setup used by the pinned FNF release.
+          # FNF v0.8.4 uses haxelib 4.1.0 and the patched "funkin-patches" branches.
           haxelib --never newrepo
-
-          # Use the same patched dependency tooling FNF uses in CI.
-          haxelib --global git haxelib https://github.com/FunkinCrew/haxelib.git
-          haxelib --global git hmm https://github.com/FunkinCrew/hmm.git
+          haxelib --debug --never --global install haxelib 4.1.0
+          haxelib --global set haxelib 4.1.0
+          haxelib --global remove haxelib git || true
+          haxelib --global remove hmm || true
+          haxelib --debug --never --global git haxelib https://github.com/FunkinCrew/haxelib.git funkin-patches --skip-dependencies
+          haxelib --debug --never --global git hmm https://github.com/FunkinCrew/hmm.git funkin-patches
 
           test -f hmm.json
 
           # Install the exact dependency commits pinned by this FNF checkout.
           haxelib --global run hmm install -q
-          haxelib --global fixrepo
+          haxelib --global fixrepo --global
           haxelib --global list
 
           echo "=== Verify and patch Lime HTML5 font logging ==="
