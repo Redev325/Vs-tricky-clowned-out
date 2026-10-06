@@ -188,6 +188,7 @@ jobs:
             ninja-build \
             pkg-config \
             libgl1-mesa-dev \
+            libdrm-dev \
             libglu1-mesa-dev \
             libasound2-dev \
             libpulse-dev \
