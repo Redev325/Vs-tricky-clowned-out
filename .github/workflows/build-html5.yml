@@ -162,6 +162,7 @@ jobs:
             libasound2-dev \
             libpulse-dev \
             libdbus-1-dev \
+            libudev-dev \
             libx11-dev \
             libxcursor-dev \
             libxext-dev \
