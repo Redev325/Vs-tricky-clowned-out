@@ -156,29 +156,8 @@ jobs:
           # Force that mod to be the enabled mod instead of relying on browser save data.
           handler = Path("source/funkin/modding/PolymodHandler.hx")
           handler_text = handler.read_text(encoding="utf-8")
-          load_all_anchor = """  public static function loadAllMods():Void
-  {
-    #if sys
-    // Create the mod root if it doesn't exist.
-    createModRoot();
-    #end
-    trace('Initializing Polymod (using all mods)...');
-    loadModsByDir(getAllModDirs());
-  }"""
-          load_all_forced = """  public static function loadAllMods():Void
-  {
-    #if sys
-    // Create the mod root if it doesn't exist.
-    createModRoot();
-    #end
-    #if html5
-    trace('Initializing Polymod (forcing TrickyClownedOut)...');
-    loadModsByDir(['TrickyClownedOut']);
-    #else
-    trace('Initializing Polymod (using all mods)...');
-    loadModsByDir(getAllModDirs());
-    #end
-  }"""
+          load_all_anchor = "  public static function loadAllMods():Void\\n  {\\n    #if sys\\n    // Create the mod root if it doesn't exist.\\n    createModRoot();\\n    #end\\n    trace('Initializing Polymod (using all mods)...');\\n    loadModsByDir(getAllModDirs());\\n  }"
+          load_all_forced = "  public static function loadAllMods():Void\\n  {\\n    #if sys\\n    // Create the mod root if it doesn't exist.\\n    createModRoot();\\n    #end\\n    #if html5\\n    trace('Initializing Polymod (forcing TrickyClownedOut)...');\\n    loadModsByDir(['TrickyClownedOut']);\\n    #else\\n    trace('Initializing Polymod (using all mods)...');\\n    loadModsByDir(getAllModDirs());\\n    #end\\n  }"
           if load_all_anchor not in handler_text:
               raise SystemExit("Could not find PolymodHandler.loadAllMods()")
           if load_all_forced not in handler_text:
