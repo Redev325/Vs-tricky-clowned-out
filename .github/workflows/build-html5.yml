@@ -363,6 +363,16 @@ jobs:
           PY
           test -s funkin/assets/mods/TrickyClownedOut.zip
           unzip -l funkin/assets/mods/TrickyClownedOut.zip | head -n 20
+
+          # Some Lime/OpenFL HTML5 shader loads bypass Polymod's virtual filesystem
+          # and request files directly from assets/shaders. Mirror the mod shaders
+          # into the core asset tree so those browser requests resolve.
+          if [ -d "$MOD_DIR/shaders" ]; then
+            mkdir -p funkin/assets/shaders
+            cp -a "$MOD_DIR/shaders"/. funkin/assets/shaders/
+            echo "Mirrored Tricky shader files:"
+            find funkin/assets/shaders -maxdepth 2 -type f -print | sort | head -n 100
+          fi
           {
             echo "=== Installed mod ==="
             du -sh funkin/mods/TrickyClownedOut
