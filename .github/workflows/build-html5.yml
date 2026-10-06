@@ -168,6 +168,7 @@ jobs:
             libxi-dev \
             libxrandr-dev \
             libxinerama-dev \
+            libxss-dev \
             libwayland-dev \
             wayland-protocols
 
