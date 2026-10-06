@@ -334,9 +334,35 @@ jobs:
           cp -a "$MOD_DIR" funkin/mods/TrickyClownedOut
           test -f funkin/mods/TrickyClownedOut/_polymod_meta.json
 
-          # The original release ZIP is embedded into the HTML5 build for Polymod.
-          cp source/TrickyClownedOut.zip funkin/assets/mods/TrickyClownedOut.zip
+          # The release ZIP contains outer packaging folders. HTML5 Polymod expects
+          # the mod's _polymod_meta.json directly at mods/TrickyClownedOut/.
+          # Repack only the normalized MOD_DIR contents so the virtual ZIP filesystem
+          # exposes the exact path Polymod is asked to load.
+          python3 - "$MOD_DIR" "funkin/assets/mods/TrickyClownedOut.zip" <<'PY'
+          from pathlib import Path
+          import sys
+          import zipfile
+
+          mod_dir = Path(sys.argv[1]).resolve()
+          out_zip = Path(sys.argv[2]).resolve()
+
+          with zipfile.ZipFile(out_zip, "w", compression=zipfile.ZIP_DEFLATED) as zf:
+              for path in mod_dir.rglob("*"):
+                  if not path.is_file():
+                      continue
+                  rel = path.relative_to(mod_dir).as_posix()
+                  zf.write(path, rel)
+
+          with zipfile.ZipFile(out_zip) as zf:
+              names = set(zf.namelist())
+              required = "_polymod_meta.json"
+              if required not in names:
+                  raise SystemExit(f"Normalized mod ZIP is missing {required}")
+              print(f"Normalized mod ZIP contains {len(names)} files.")
+              print(f"Metadata path: {required}")
+          PY
           test -s funkin/assets/mods/TrickyClownedOut.zip
+          unzip -l funkin/assets/mods/TrickyClownedOut.zip | head -n 20
           {
             echo "=== Installed mod ==="
             du -sh funkin/mods/TrickyClownedOut
