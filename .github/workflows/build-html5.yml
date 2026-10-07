@@ -229,6 +229,34 @@ jobs:
               main.write_text(main_text, encoding="utf-8")
           print("Forced TrickyClownedOut from Main.hx.")
 
+          # Re-check the HScript class registry after the forced mod load.
+          # This addresses HTML5 builds where the mod finishes loading but the
+          # Tricky boot-state descriptor is not yet visible to scriptInit().
+          registry_check = """    #if html5
+    var trickyBootRegistered:Bool = false;
+    for (scriptedClassName in polymod.hscript._internal.PolymodScriptClass.listScriptClasses())
+    {
+      if (scriptedClassName == 'TrickyBootScreenState')
+      {
+        trickyBootRegistered = true;
+        break;
+      }
+    }
+    if (!trickyBootRegistered)
+    {
+      trace('WARNING: TrickyBootScreenState is not registered after mod load; re-registering HTML5 scripted classes.');
+      polymod.Polymod.registerAllScriptClasses();
+    }
+    #end"""
+          registry_check = registry_check.replace("\n", "\n          ")
+          main_anchor_for_registry = "          print(\"Forced TrickyClownedOut from Main.hx.\")"
+          if "TrickyBootScreenState is not registered after mod load" not in main_text:
+              main_text = main_text.replace(main_anchor_for_registry, main_anchor_for_registry + "\n\n" + registry_check, 1)
+              main.write_text(main_text, encoding="utf-8")
+              print("Added an HTML5 scripted-class registry recheck.")
+          else:
+              print("HTML5 scripted-class registry recheck already present.")
+
           # The stock scrollMenu MP3 is unavailable from the v0.8.6 source payload
           # on this HTML5 build and causes a live HTTP 503 when the stock menu tries
           # to play it. Ignore only that one missing web SFX; Tricky has its own menu audio.
