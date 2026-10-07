@@ -254,75 +254,52 @@ jobs:
           if sync_line not in handler_script_text:
               handler_script_text = handler_script_text.replace(async_line, sync_line, 1)
 
-          # FNF 0.8.6 already performs a global scripted-class registration pass,
-          # but on this HTML5 ZIP filesystem the Tricky-only classes are not
-          # appearing in the interpreter before InitState builds its caches.
-          # Register the missing Tricky state/module scripts explicitly here,
+          # FNF 0.8.6 normally registers scripted classes during Polymod.init().
+          # On the HTML5 ZIP filesystem, the Tricky state/module scripts are not
+          # reaching the interpreter registry, so register missing Tricky scripts
           # before loadModsByDir() returns and before InitState.setupShit() runs.
-          runtime_anchor = """    if (loadedModList == null)
-    {
-"""
-          runtime_insertion = """    #if html5
-    @:privateAccess
-    {
-      var registeredClasses:Array<String> = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();
-
-      var trickyScriptPaths:Array<String> =
-        polymod.Polymod.listModFiles(polymod.backends.PolymodAssets.PolymodAssetType.TEXT);
-
-      for (scriptPath in trickyScriptPaths)
-      {
-        var normalizedPath:String = scriptPath.toLowerCase();
-
-        if (!normalizedPath.endsWith('.hxc') && !normalizedPath.endsWith('.hx')) continue;
-        if (!normalizedPath.contains('/scripts/states/') && !normalizedPath.contains('/scripts/modules/')) continue;
-
-        var fileName:String = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
-        var expectedClassName:String = fileName.substring(0, fileName.lastIndexOf('.'));
-
-        var alreadyRegistered:Bool = false;
-        for (className in registeredClasses)
-        {
-          if (className == expectedClassName)
-          {
-            alreadyRegistered = true;
-            break;
-          }
-        }
-
-        if (!alreadyRegistered)
-        {
-          trace('Registering missing Tricky script class directly: ' + scriptPath);
-          polymod.hscript._internal.PolymodScriptClass.registerScriptClassByPath(scriptPath);
-          registeredClasses = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();
-        }
-      }
-
-      var hasTrickyBoot:Bool = false;
-      for (className in registeredClasses)
-      {
-        if (className == 'TrickyBootScreenState')
-        {
-          hasTrickyBoot = true;
-          break;
-        }
-      }
-
-      trace('TrickyBootScreenState registered before InitState: ' + hasTrickyBoot);
-    }
-    #end
-
-    if (loadedModList == null)
-    {
-"""
-
-if runtime_insertion not in handler_script_text:
+          runtime_anchor = "    if (loadedModList == null)\\n    {\\n"
+          runtime_lines = [
+              "    #if html5",
+              "    @:privateAccess",
+              "    {",
+              "      var registeredClasses:Array<String> = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();",
+              "      var trickyScriptPaths:Array<String> = polymod.Polymod.listModFiles(polymod.backends.PolymodAssets.PolymodAssetType.TEXT);",
+              "      trace('Tricky TEXT script candidates: ' + trickyScriptPaths.filter(function(p) return p.toLowerCase().contains('/scripts/')));",
+              "",
+              "      for (scriptPath in trickyScriptPaths)",
+              "      {",
+              "        var normalizedPath:String = scriptPath.toLowerCase();",
+              "        if (!normalizedPath.endsWith('.hxc') && !normalizedPath.endsWith('.hx')) continue;",
+              "        if (!normalizedPath.contains('/scripts/states/') && !normalizedPath.contains('/scripts/modules/')) continue;",
+              "",
+              "        var fileName:String = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);",
+              "        var expectedClassName:String = fileName.substring(0, fileName.lastIndexOf('.'));",
+              "        var alreadyRegistered:Bool = registeredClasses.indexOf(expectedClassName) != -1;",
+              "",
+              "        if (!alreadyRegistered)",
+              "        {",
+              "          trace('Registering missing Tricky script class directly: ' + scriptPath);",
+              "          polymod.hscript._internal.PolymodScriptClass.registerScriptClassByPath(scriptPath);",
+              "          registeredClasses = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();",
+              "        }",
+              "      }",
+              "",
+              "      trace('TrickyBootScreenState registered before InitState: ' + (registeredClasses.indexOf('TrickyBootScreenState') != -1));",
+              "    }",
+              "    #end",
+              "",
+              "    if (loadedModList == null)",
+              "    {",
+          ]
+          runtime_insertion = "\\n".join(runtime_lines)
+          if "TrickyBootScreenState registered before InitState" not in handler_script_text:
               if runtime_anchor not in handler_script_text:
                   raise SystemExit("Could not find Polymod post-init insertion anchor")
               handler_script_text = handler_script_text.replace(runtime_anchor, runtime_insertion, 1)
 
           handler_script.write_text(handler_script_text, encoding="utf-8")
-          print("Made Tricky mod script loading synchronous and explicitly registered missing Tricky scripts for HTML5.")
+          print("Made Tricky mod script loading synchronous and added explicit HTML5 registration for missing state/module scripts.")
 
           main = Path("source/Main.hx")
           main_text = main.read_text(encoding="utf-8")
