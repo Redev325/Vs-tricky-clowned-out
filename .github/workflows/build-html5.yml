@@ -154,6 +154,17 @@ jobs:
 
           # This repository is a dedicated Tricky Clowned Out HTML5 build.
           # Force startup to load only this mod.
+          handler_script = Path("source/funkin/modding/PolymodHandler.hx")
+          handler_script_text = handler_script.read_text(encoding="utf-8")
+          async_line = "      loadScriptsAsync: #if html5 true #else false #end,"
+          sync_line = "      loadScriptsAsync: false,"
+          if async_line not in handler_script_text:
+              raise SystemExit("Could not find Polymod loadScriptsAsync setting")
+          if sync_line not in handler_script_text:
+              handler_script_text = handler_script_text.replace(async_line, sync_line, 1)
+              handler_script.write_text(handler_script_text, encoding="utf-8")
+          print("Made Tricky mod script loading synchronous for HTML5.")
+
           main = Path("source/Main.hx")
           main_text = main.read_text(encoding="utf-8")
           main_anchor = "    funkin.modding.PolymodHandler.loadAllMods();"
@@ -169,15 +180,6 @@ jobs:
           # as a normal game asset, then inject it into that virtual filesystem.
           project = Path("project.hxp")
           project_text = project.read_text(encoding="utf-8")
-
-          # Show the actual Tricky menu immediately on HTML5 instead of the stock
-          # "Touch Here To Play" preloader overlay.
-          touch_here = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, isWeb());"
-          touch_here_disabled = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, false);"
-          if touch_here not in project_text:
-              raise SystemExit("Could not find FEATURE_TOUCH_HERE_TO_PLAY setting in project.hxp")
-          project_text = project_text.replace(touch_here, touch_here_disabled, 1)
-          print("Disabled Touch Here To Play for the dedicated Tricky HTML5 build.")
 
           project_anchor = '    addAssetPath("assets/preload", "assets", "default", ["*"], exclude, shouldEmbed, "assets");'
           project_replacement = project_anchor + '\n    addAssetPath("assets/mods", "mods", "default", ["*.zip"], [], true, "assets");'
@@ -396,6 +398,8 @@ jobs:
           grep -Fn "loadModsByDir(['TrickyClownedOut']);" source/Main.hx
           grep -n 'addAssetPath("assets/mods", "mods", "default"' project.hxp
           grep -n "fs.addZipFile('TrickyClownedOut.zip', modZipBytes);" source/funkin/modding/PolymodHandler.hx
+          test -s assets/mods/TrickyClownedOut.zip
+          grep -Fn "loadScriptsAsync: false," source/funkin/modding/PolymodHandler.hx
           test -s assets/mods/TrickyClownedOut.zip
 
       - name: Build HTML5 release
