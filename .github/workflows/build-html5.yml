@@ -157,11 +157,11 @@ jobs:
 
           # This repository is a dedicated Tricky Clowned Out HTML5 build.
           # Force startup to load only this mod.
-          #
-          # Also patch InitState so the HTML5 game enters Tricky's scripted
-          # boot screen directly after the FNF touch-to-play preloader.
-          # This bypasses the stock Title/Main Menu path that the mod's
-          # TrickyMenuRedirectorModule normally intercepts.
+
+          handler_script_text = handler_script.read_text(encoding="utf-8")
+
+          # Skip the HTML5 touch-to-play interstitial. We still launch the
+          # Tricky boot screen directly so the first visible game state is Tricky.
           init_state = Path("source/funkin/InitState.hx")
           init_text = init_state.read_text(encoding="utf-8")
           init_import = "import funkin.ui.ScriptedMusicBeatState;"
@@ -171,53 +171,40 @@ jobs:
                   raise SystemExit("Could not find TitleState import in InitState.hx")
               init_text = init_text.replace(title_import, title_import + "\n" + init_import, 1)
 
-          # Replace only the final normal-launch branch. Other TitleState
-          # fallbacks are for debug/chart-launch paths and must remain intact.
-          normal_start_anchor = """    else
-    {
-      #if mobile
-      funkin.mobile.util.FNFCProvider.onFNFCOpen.add(function(fnfcFile:String)
-      {
-        flixel.tweens.FlxTween.globalManager.clear();
-        flixel.util.FlxTimer.globalManager.clear();
-        @:nullSafety(Off)
-        if (FlxG.sound.music != null)
-        {
-          FlxG.sound.music.destroy();
-          FlxG.sound.music = null;
-        }
+          start_marker = "  function startGameNormally():Void"
+          next_doc_marker = "\n  /**\n   * Start the game by directly loading into a specific song."
+          start_pos = init_text.find(start_marker)
+          if start_pos < 0:
+              raise SystemExit("Could not find startGameNormally() in InitState.hx")
+          end_pos = init_text.find(next_doc_marker, start_pos)
+          if end_pos < 0:
+              raise SystemExit("Could not find end of startGameNormally() in InitState.hx")
 
-        FlxG.switchState(() -> new ChartPlaytestMenu(fnfcFile));
-      });
-
-      final fnfcFile = funkin.mobile.util.FNFCProvider.queryFNFC();
-      if (fnfcFile != null)
-      {
-        trace('launching FNFC from $fnfcFile');
-        FlxG.switchState(() -> new ChartPlaytestMenu(fnfcFile));
-      }
-      else
-      {
-        FlxG.switchState(() -> new TitleState());
-      }
-      #else
-      FlxG.switchState(() -> new TitleState());
-      #end
-    }
-  }"""
-
-          normal_start_replacement = normal_start_anchor.replace(
-              "FlxG.switchState(() -> new TitleState());\n      #end\n    }",
-              "FlxG.switchState(() -> ScriptedMusicBeatState.init('TrickyBootScreenState'));\n      #end\n    }",
-              1
+          start_block = init_text[start_pos:end_pos]
+          title_launch = "      FlxG.switchState(() -> new TitleState());"
+          launch_pos = start_block.rfind(title_launch)
+          if launch_pos < 0:
+              raise SystemExit("Could not find final normal TitleState launch in InitState.hx")
+          start_block = (
+              start_block[:launch_pos]
+              + "      FlxG.switchState(() -> ScriptedMusicBeatState.init('TrickyBootScreenState'));"
+              + start_block[launch_pos + len(title_launch):]
           )
-          if normal_start_anchor not in init_text:
-              raise SystemExit("Could not find final normal InitState TitleState launch block")
-          if "ScriptedMusicBeatState.init('TrickyBootScreenState')" not in init_text:
-              init_text = init_text.replace(normal_start_anchor, normal_start_replacement, 1)
-
+          init_text = init_text[:start_pos] + start_block + init_text[end_pos:]
           init_state.write_text(init_text, encoding="utf-8")
-          print("Patched the final normal InitState launch to TrickyBootScreenState after the touch-to-play preloader.")
+          print("Patched normal startup to TrickyBootScreenState.")
+
+          # Disable the stock FNF web touch-to-play prompt.
+          project = Path("project.hxp")
+          project_text = project.read_text(encoding="utf-8")
+          touch_anchor = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, isWeb());"
+          touch_disabled = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, false);"
+          if touch_anchor not in project_text:
+              raise SystemExit("Could not find FEATURE_TOUCH_HERE_TO_PLAY configuration")
+          if touch_disabled not in project_text:
+              project_text = project_text.replace(touch_anchor, touch_disabled, 1)
+              project.write_text(project_text, encoding="utf-8")
+          print("Disabled the HTML5 touch-to-play prompt.")
 
           handler_script = Path("source/funkin/modding/PolymodHandler.hx")
           handler_script_text = handler_script.read_text(encoding="utf-8")
@@ -241,6 +228,20 @@ jobs:
               main.write_text(main_text, encoding="utf-8")
           print("Forced TrickyClownedOut from Main.hx.")
 
+          # The stock scrollMenu MP3 is unavailable from the v0.8.6 source payload
+          # on this HTML5 build and causes a live HTTP 503 when the stock menu tries
+          # to play it. Ignore only that one missing web SFX; Tricky has its own menu audio.
+          sound = Path("source/funkin/audio/FunkinSound.hx")
+          sound_text = sound.read_text(encoding="utf-8")
+          sound_anchor = "  public static function playOnce(key:String, volume:Float = 1.0, ?onComplete:Void->Void, ?onLoad:Void->Void, important:Bool = false):Null<FunkinSound>\n  {"
+          sound_guard = "  public static function playOnce(key:String, volume:Float = 1.0, ?onComplete:Void->Void, ?onLoad:Void->Void, important:Bool = false):Null<FunkinSound>\n  {\n    #if html5\n    if (key == Paths.sound('scrollMenu')) return null;\n    #end"
+          if sound_anchor not in sound_text:
+              raise SystemExit("Could not find FunkinSound.playOnce()")
+          if sound_guard not in sound_text:
+              sound_text = sound_text.replace(sound_anchor, sound_guard, 1)
+              sound.write_text(sound_text, encoding="utf-8")
+          print("Disabled the missing scrollMenu web SFX request.")
+          
           # HTML5 Polymod uses an in-memory ZIP filesystem. Embed the release ZIP
           # as a normal game asset, then inject it into that virtual filesystem.
           project = Path("project.hxp")
@@ -465,6 +466,8 @@ jobs:
           grep -n "fs.addZipFile('TrickyClownedOut.zip', modZipBytes);" source/funkin/modding/PolymodHandler.hx
           test -s assets/mods/TrickyClownedOut.zip
           grep -Fn "loadScriptsAsync: false," source/funkin/modding/PolymodHandler.hx
+          grep -Fn "FEATURE_TOUCH_HERE_TO_PLAY.apply(this, false);" project.hxp
+          grep -Fn "if (key == Paths.sound('scrollMenu')) return null;" source/funkin/audio/FunkinSound.hx
           test -s assets/mods/TrickyClownedOut.zip
 
       - name: Build HTML5 release
