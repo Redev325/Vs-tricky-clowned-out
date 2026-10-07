@@ -247,7 +247,7 @@ jobs:
           # preloader so the game can finish initialization instead of aborting
           # on a host-side 503 before the Tricky mod starts.
           web_exclude_anchor = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg"];'
-          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "data/songs/spookeez/spookeez-chart.json", "images/freeplay/albumRoll/*.xml"];'
+          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "data/songs/spookeez/spookeez-chart.json", "images/freeplay/albumRoll/*.xml", "images/freeplay/albumRoll/volume4-text.xml"];'
           if web_exclude_anchor not in project_text:
               raise SystemExit("Could not find EXCLUDE_ASSETS_WEB in project.hxp")
           if web_exclude_replacement not in project_text:
