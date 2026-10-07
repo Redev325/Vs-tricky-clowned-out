@@ -283,7 +283,7 @@ jobs:
               "    #end",
               "",
           ]
-          runtime_insertion = "\\n".join(runtime_lines)
+          runtime_insertion = "\n".join(runtime_lines)
           if "TrickyBootScreenState registered before InitState" not in handler_script_text:
               if runtime_marker not in handler_script_text:
                   raise SystemExit("Could not find Polymod loadModsByDir post-init anchor")
