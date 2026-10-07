@@ -278,7 +278,7 @@ jobs:
               "      {",
               "        var normalizedPath:String = scriptPath.toLowerCase();",
               "        if (!normalizedPath.endsWith('.hxc') && !normalizedPath.endsWith('.hx')) continue;",
-              "        normalizedPath = normalizedPath.replace(/^\\/+/, '');",
+              "        while (normalizedPath.startsWith('/')) normalizedPath = normalizedPath.substring(1);",
               "        if (!normalizedPath.startsWith('scripts/states/') && !normalizedPath.startsWith('scripts/modules/')) continue;",
               "        var fileName:String = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);",
               "        var expectedClassName:String = fileName.substring(0, fileName.lastIndexOf('.'));",
@@ -622,13 +622,13 @@ jobs:
 
       - name: Upload Pages artifact
         if: success()
-        uses: actions/upload-pages-artifact@v3
+        uses: actions/upload-pages-artifact@v4
         with:
           path: site
 
       - name: Upload diagnostic logs
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tricky-clowned-out-ci-logs
           path: ci-logs
@@ -685,7 +685,7 @@ jobs:
           (async () => {
             const browser = await chromium.launch({
               headless: true,
-              args: ['--enable-unsafe-swiftshader']
+              args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader']
             });
             const context = await browser.newContext({
               ignoreHTTPSErrors: true
@@ -952,7 +952,7 @@ jobs:
 
       - name: Upload website error report
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: tricky-clowned-out-website-errors
           path: website-scan
