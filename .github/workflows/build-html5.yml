@@ -188,7 +188,7 @@ jobs:
               raise SystemExit("Could not find final normal TitleState launch in InitState.hx")
           start_block = (
               start_block[:launch_pos]
-              + "      FlxG.switchState(() -> ScriptedMusicBeatState.init('TrickyBootScreenState'));"
+              + "      FlxG.switchState(() -> ScriptedMusicBeatState.scriptInit('TrickyBootScreenState'));"
               + start_block[launch_pos + len(title_launch):]
           )
           init_text = init_text[:start_pos] + start_block + init_text[end_pos:]
