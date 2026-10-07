@@ -81,7 +81,10 @@ jobs:
               f.write(api)
           PY
 
-          echo "FNF_VERSION=$(cat /tmp/fnf_version)" >> "$GITHUB_ENV"
+          # The published Tricky Clowned Out base-game mod targets FNF 0.8.6.
+          # The uploaded archive's metadata is 0.8.4, so do not downgrade the engine.
+          echo "Mod metadata API: $(cat /tmp/fnf_version)"
+          echo "FNF_VERSION=0.8.6" >> "$GITHUB_ENV"
 
           {
             echo "=== Mod inventory ==="
@@ -90,27 +93,6 @@ jobs:
             echo "FNF_VERSION=$(cat /tmp/fnf_version)"
             find "$MOD_DIR" -maxdepth 2 -type f | head -n 100
           } | tee "$GITHUB_WORKSPACE/ci-logs/mod.txt"
-
-      - name: Inspect Tricky menu scripts
-        run: |
-          set -euo pipefail
-          {
-            echo "=== MOD FILES (all script/data filenames) ==="
-            find "$MOD_DIR" -type f | sort | grep -E '(^|/)(scripts|data)/' | head -n 1000 || true
-            echo ""
-            echo "=== MENU/STATE/INIT/MAIN FILENAMES ==="
-            find "$MOD_DIR" -type f | sort | grep -Ei '(menu|state|title|module|transition|boot|init|main)' | head -n 500 || true
-            echo ""
-            echo "=== SCRIPT IMPORT FILE ==="
-            if [ -f "$MOD_DIR/scripts/import.hx" ]; then
-              cat "$MOD_DIR/scripts/import.hx"
-            else
-              echo "No scripts/import.hx"
-            fi
-            echo ""
-            echo "=== SCRIPT REFERENCES TO MAIN MENU / STATE SWITCHING ==="
-            grep -RniE 'MainMenuState|mainMenu|switchState|FlxG\.switchState|TitleState|InitState|FlxG\.state|MusicBeatState' "$MOD_DIR/scripts" 2>/dev/null | head -n 500 || true
-          } | tee "$GITHUB_WORKSPACE/ci-logs/menu-diagnostics.txt"
 
       - name: Checkout matching Friday Night Funkin source
         run: |
@@ -225,8 +207,8 @@ jobs:
           # Also make CompiledClassList report the exact unresolved class name.
           compiled = Path("source/funkin/util/macro/CompiledClassList.hx")
           compiled_text = compiled.read_text(encoding="utf-8")
-          compiled_anchor = "          var classType:Class<Dynamic> = cast Type.resolveClass(className);\n          classes.push(classType);"
-          compiled_guard = "          var classType:Class<Dynamic> = cast Type.resolveClass(className);\n          if (classType == null)\n          {\n            trace(' WARNING: HTML5 could not resolve compiled class: ' + className);\n            continue;\n          }\n          classes.push(classType);"
+          compiled_anchor = "          var classType:Class<Dynamic> = Type.resolveClass(className);\n          classes.push(classType);"
+          compiled_guard = "          var classType:Class<Dynamic> = Type.resolveClass(className);\n          if (classType == null)\n          {\n            trace(' WARNING: HTML5 could not resolve compiled class: ' + className);\n            continue;\n          }\n          classes.push(classType);"
           if compiled_anchor not in compiled_text:
               raise SystemExit("Could not find CompiledClassList resolveClass block")
           if compiled_guard not in compiled_text:
