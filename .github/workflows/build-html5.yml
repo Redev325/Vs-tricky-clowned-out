@@ -158,6 +158,7 @@ jobs:
           # This repository is a dedicated Tricky Clowned Out HTML5 build.
           # Force startup to load only this mod.
 
+          handler_script = Path("source/funkin/modding/PolymodHandler.hx")
           handler_script_text = handler_script.read_text(encoding="utf-8")
 
           # Skip the HTML5 touch-to-play interstitial. We still launch the
