@@ -402,7 +402,6 @@ jobs:
           haxelib --never newrepo
           haxelib --debug --never --global install haxelib 4.1.0
           haxelib --global set haxelib 4.1.0
-          haxelib fixrepo
           haxelib --debug --never --global git haxelib https://github.com/FunkinCrew/haxelib.git funkin-patches --skip-dependencies
 
           # GitHub's package mirror can occasionally return a transient HTTP 502
@@ -428,7 +427,6 @@ jobs:
           # This removes the dependency-version mismatch warning.
           haxelib --debug --never --global git FlxPartialSound https://github.com/FunkinCrew/FlxPartialSound.git 13a0949395250216b9b500ca0731b46841e46085 --skip-dependencies
 
-          haxelib fixrepo
           haxelib --global list
 
           echo "=== Verify and patch Lime HTML5 font logging ==="
