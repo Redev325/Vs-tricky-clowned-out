@@ -169,6 +169,16 @@ jobs:
           # as a normal game asset, then inject it into that virtual filesystem.
           project = Path("project.hxp")
           project_text = project.read_text(encoding="utf-8")
+
+          # Show the actual Tricky menu immediately on HTML5 instead of the stock
+          # "Touch Here To Play" preloader overlay.
+          touch_here = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, isWeb());"
+          touch_here_disabled = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, false);"
+          if touch_here not in project_text:
+              raise SystemExit("Could not find FEATURE_TOUCH_HERE_TO_PLAY setting in project.hxp")
+          project_text = project_text.replace(touch_here, touch_here_disabled, 1)
+          print("Disabled Touch Here To Play for the dedicated Tricky HTML5 build.")
+
           project_anchor = '    addAssetPath("assets/preload", "assets", "default", ["*"], exclude, shouldEmbed, "assets");'
           project_replacement = project_anchor + '\n    addAssetPath("assets/mods", "mods", "default", ["*.zip"], [], true, "assets");'
           if project_anchor not in project_text:
