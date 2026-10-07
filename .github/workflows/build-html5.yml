@@ -556,6 +556,7 @@ jobs:
           ).toString();
 
           const consoleMessages = [];
+          const allConsoleMessages = [];
           const pageErrors = [];
           const unhandledRejections = [];
           const failedRequests = [];
@@ -598,13 +599,16 @@ jobs:
             const page = await context.newPage();
 
             page.on('console', msg => {
+              const location = msg.location();
+              const line =
+                '[console.' + msg.type() + '] ' + msg.text() +
+                (location && location.url
+                  ? ' @ ' + location.url + ':' + location.lineNumber + ':' + location.columnNumber
+                  : '');
+
+              allConsoleMessages.push(line);
+
               if (msg.type() === 'error' || msg.type() === 'warning') {
-                const location = msg.location();
-                const line =
-                  '[console.' + msg.type() + '] ' + msg.text() +
-                  (location && location.url
-                    ? ' @ ' + location.url + ':' + location.lineNumber + ':' + location.columnNumber
-                    : '');
                 consoleMessages.push(line);
               }
             });
@@ -773,6 +777,11 @@ jobs:
               if (consoleMessages.length) {
                 console.log('=== Console errors/warnings with locations ===');
                 consoleMessages.forEach(x => console.log(x));
+              }
+
+              if (allConsoleMessages.length) {
+                console.log('=== All browser console messages ===');
+                allConsoleMessages.slice(-1000).forEach(x => console.log(x));
               }
 
               if (failedRequests.length) {
