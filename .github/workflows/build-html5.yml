@@ -220,6 +220,9 @@ jobs:
           init_state.write_text(init_text, encoding="utf-8")
           print("Patched normal startup to TrickyBootScreenState.")
 
+          project = Path("project.hxp")
+          project_text = project.read_text(encoding="utf-8")
+
           # This dedicated web build does not use Newgrounds services.
           # Disable the feature before compilation to avoid unused web-only NG classes.
           newgrounds_anchor = "    FEATURE_NEWGROUNDS.apply(this, true);"
@@ -230,8 +233,6 @@ jobs:
           print("Disabled Newgrounds for the dedicated HTML5 build.")
 
           # Disable the stock FNF web touch-to-play prompt.
-          project = Path("project.hxp")
-          project_text = project.read_text(encoding="utf-8")
           touch_anchor = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, isWeb());"
           touch_disabled = "    FEATURE_TOUCH_HERE_TO_PLAY.apply(this, false);"
           if touch_anchor not in project_text:
@@ -351,7 +352,7 @@ jobs:
               handler.write_text(handler_text, encoding="utf-8")
           print("Injected Tricky mod ZIP into HTML5 Polymod filesystem.")
 
-          # Also make CompiledClassList report the exact unresolved class name.
+          # Skip non-fatal unresolved HTML5 compiled classes instead of emitting hundreds of warning traces.
           compiled = Path("source/funkin/util/macro/CompiledClassList.hx")
           compiled_text = compiled.read_text(encoding="utf-8")
           compiled_anchor = "          var classType:Class<Dynamic> = Type.resolveClass(className);\n          classes.push(classType);"
@@ -667,7 +668,10 @@ jobs:
           }
 
           (async () => {
-            const browser = await chromium.launch({\n              headless: true,\n              args: ['--enable-unsafe-swiftshader']\n            });
+            const browser = await chromium.launch({
+              headless: true,
+              args: ['--enable-unsafe-swiftshader']
+            });
             const context = await browser.newContext({
               ignoreHTTPSErrors: true
             });
