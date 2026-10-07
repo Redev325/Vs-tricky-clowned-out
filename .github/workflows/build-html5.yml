@@ -395,12 +395,14 @@ jobs:
           echo "=== FNF dependency setup ==="
           echo "Haxe: $(haxe --version)"
           echo "Haxelib: $(haxelib version)"
+          : > .env
 
           # Match the Haxe/HMM setup used by the pinned FNF release.
           # FNF v0.8.4 uses haxelib 4.1.0 and the patched "funkin-patches" branches.
           haxelib --never newrepo
           haxelib --debug --never --global install haxelib 4.1.0
           haxelib --global set haxelib 4.1.0
+          haxelib fixrepo
           haxelib --debug --never --global git haxelib https://github.com/FunkinCrew/haxelib.git funkin-patches --skip-dependencies
 
           # GitHub's package mirror can occasionally return a transient HTTP 502
@@ -421,7 +423,12 @@ jobs:
 
           # Install the exact dependency commits pinned by this FNF checkout.
           haxelib --global run hmm install -q
-          haxelib --global fixrepo --global
+
+          # Re-pin FlxPartialSound to the exact FNF v0.8.6 lockfile commit.
+          # This removes the dependency-version mismatch warning.
+          haxelib --debug --never --global git FlxPartialSound https://github.com/FunkinCrew/FlxPartialSound.git 13a0949395250216b9b500ca0731b46841e46085 --skip-dependencies
+
+          haxelib fixrepo
           haxelib --global list
 
           echo "=== Verify and patch Lime HTML5 font logging ==="
@@ -554,6 +561,29 @@ jobs:
           PY
           test -s funkin/assets/mods/TrickyClownedOut.zip
           unzip -l funkin/assets/mods/TrickyClownedOut.zip | head -n 20
+
+          # Some HTML5 asset loads can bypass Polymod and request this Tricky
+          # album title directly from the deployed assets/ directory. Mirror the
+          # exact file (plus its matching sprite sheet) when the mod provides it.
+          python3 - "$MOD_DIR" <<'PY'
+          from pathlib import Path
+          import shutil
+          import sys
+
+          mod_dir = Path(sys.argv[1]).resolve()
+          matches = list(mod_dir.rglob("volume4-text.xml"))
+          if matches:
+              src = matches[0]
+              out_dir = Path("funkin/assets/images/freeplay/albumRoll")
+              out_dir.mkdir(parents=True, exist_ok=True)
+              shutil.copy2(src, out_dir / "volume4-text.xml")
+              for sibling in src.parent.glob("volume4-text.*"):
+                  if sibling.is_file():
+                      shutil.copy2(sibling, out_dir / sibling.name)
+                      print(f"Mirrored direct album asset: {sibling.name}")
+          else:
+              print("No Tricky volume4-text.xml found; no direct album mirror needed.")
+          PY
 
           # Some Lime/OpenFL HTML5 shader loads bypass Polymod's virtual filesystem
           # and request files directly from assets/shaders. Mirror the mod shaders
