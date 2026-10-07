@@ -157,6 +157,30 @@ jobs:
 
           # This repository is a dedicated Tricky Clowned Out HTML5 build.
           # Force startup to load only this mod.
+          #
+          # Also patch InitState so the HTML5 game enters Tricky's scripted
+          # boot screen directly after the FNF touch-to-play preloader.
+          # This bypasses the stock Title/Main Menu path that the mod's
+          # TrickyMenuRedirectorModule normally intercepts.
+          init_state = Path("source/funkin/InitState.hx")
+          init_text = init_state.read_text(encoding="utf-8")
+          init_import = "import funkin.ui.ScriptedMusicBeatState;"
+          title_import = "import funkin.ui.title.TitleState;"
+          if init_import not in init_text:
+              if title_import not in init_text:
+                  raise SystemExit("Could not find TitleState import in InitState.hx")
+              init_text = init_text.replace(title_import, title_import + "\n" + init_import, 1)
+
+          normal_start_anchor = "      FlxG.switchState(() -> new TitleState());"
+          normal_start_replacement = "      FlxG.switchState(() -> ScriptedMusicBeatState.init('TrickyBootScreenState'));"
+          if normal_start_anchor not in init_text:
+              raise SystemExit("Could not find normal InitState TitleState launch")
+          if normal_start_replacement not in init_text:
+              init_text = init_text.replace(normal_start_anchor, normal_start_replacement, 1)
+
+          init_state.write_text(init_text, encoding="utf-8")
+          print("Patched InitState to launch TrickyBootScreenState after the touch-to-play preloader.")
+
           handler_script = Path("source/funkin/modding/PolymodHandler.hx")
           handler_script_text = handler_script.read_text(encoding="utf-8")
           async_line = "      loadScriptsAsync: #if html5 true #else false #end,"
