@@ -267,6 +267,33 @@ jobs:
               main.write_text(main_text, encoding="utf-8")
           print("Forced TrickyClownedOut from Main.hx.")
 
+          # Polymod's global scripted-class pass is not reliably exposing the
+          # Tricky boot state on this HTML5 build. Register that state script
+          # explicitly after the mod has been initialized, using the same
+          # interpreter registry that scriptInit() reads.
+          post_load = """    #if html5
+    @:privateAccess
+    var trickyScriptFiles = polymod.Polymod.listModFiles(polymod.backends.PolymodAssets.PolymodAssetType.TEXT);
+    for (modFile in trickyScriptFiles)
+    {
+      if (modFile.toLowerCase().endsWith('scripts/states/trickybootscreen.hxc'))
+      {
+        trace('Registering TrickyBootScreenState directly from mod file: ' + modFile);
+        @:privateAccess
+        polymod.hscript._internal.PolymodScriptClass.registerScriptClassByPath(modFile);
+      }
+    }
+    @:privateAccess
+    var trickyClasses = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();
+    trace('Registered scripted classes containing "Tricky": ' + [for (name in trickyClasses) if (name.toLowerCase().contains('tricky')) name]);
+    #end"""
+          post_load = post_load.replace("\n", "\n          ")
+          main_marker = "          print(\"Forced TrickyClownedOut from Main.hx.\")"
+          if "Registering TrickyBootScreenState directly from mod file" not in main_text:
+              main_text = main_text.replace(main_marker, main_marker + "\n\n" + post_load, 1)
+              main.write_text(main_text, encoding="utf-8")
+          print("Added direct Tricky boot-state script registration on HTML5.")
+
           # The stock scrollMenu MP3 is unavailable from the v0.8.6 source payload
           # on this HTML5 build and causes a live HTTP 503 when the stock menu tries
           # to play it. Ignore only that one missing web SFX; Tricky has its own menu audio.
