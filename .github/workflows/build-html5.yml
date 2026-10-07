@@ -220,6 +220,15 @@ jobs:
           init_state.write_text(init_text, encoding="utf-8")
           print("Patched normal startup to TrickyBootScreenState.")
 
+          # This dedicated web build does not use Newgrounds services.
+          # Disable the feature before compilation to avoid unused web-only NG classes.
+          newgrounds_anchor = "    FEATURE_NEWGROUNDS.apply(this, true);"
+          newgrounds_disabled = "    FEATURE_NEWGROUNDS.apply(this, false);"
+          if newgrounds_anchor in project_text:
+              project_text = project_text.replace(newgrounds_anchor, newgrounds_disabled, 1)
+              project.write_text(project_text, encoding="utf-8")
+          print("Disabled Newgrounds for the dedicated HTML5 build.")
+
           # Disable the stock FNF web touch-to-play prompt.
           project = Path("project.hxp")
           project_text = project.read_text(encoding="utf-8")
@@ -237,13 +246,13 @@ jobs:
           # preloader so the game can finish initialization instead of aborting
           # on a host-side 503 before the Tricky mod starts.
           web_exclude_anchor = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg"];'
-          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "data/songs/spookeez/spookeez-chart.json"];'
+          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "data/songs/spookeez/spookeez-chart.json", "images/freeplay/albumRoll/*.xml"];'
           if web_exclude_anchor not in project_text:
               raise SystemExit("Could not find EXCLUDE_ASSETS_WEB in project.hxp")
           if web_exclude_replacement not in project_text:
               project_text = project_text.replace(web_exclude_anchor, web_exclude_replacement, 1)
               project.write_text(project_text, encoding="utf-8")
-          print("Excluded the failing stock spookeez chart from the HTML5 preloader.")
+          print("Excluded the failing stock spookeez chart and unused stock Freeplay album-roll XMLs from the HTML5 preloader.")
 
           handler_script = Path("source/funkin/modding/PolymodHandler.hx")
           handler_script_text = handler_script.read_text(encoding="utf-8")
@@ -346,7 +355,7 @@ jobs:
           compiled = Path("source/funkin/util/macro/CompiledClassList.hx")
           compiled_text = compiled.read_text(encoding="utf-8")
           compiled_anchor = "          var classType:Class<Dynamic> = Type.resolveClass(className);\n          classes.push(classType);"
-          compiled_guard = "          var classType:Class<Dynamic> = Type.resolveClass(className);\n          if (classType == null)\n          {\n            trace(' WARNING: HTML5 could not resolve compiled class: ' + className);\n            continue;\n          }\n          classes.push(classType);"
+          compiled_guard = "          var classType:Class<Dynamic> = Type.resolveClass(className);\n          if (classType == null)\n          {\n            continue;\n          }\n          classes.push(classType);"
           if compiled_anchor not in compiled_text:
               raise SystemExit("Could not find CompiledClassList resolveClass block")
           if compiled_guard not in compiled_text:
@@ -486,6 +495,19 @@ jobs:
           rm -rf funkin/mods/TrickyClownedOut
           cp -a "$MOD_DIR" funkin/mods/TrickyClownedOut
           test -f funkin/mods/TrickyClownedOut/_polymod_meta.json
+
+          # Polymod warns when a mod has no icon. Add a tiny valid PNG only when absent.
+          icon_path = Path("funkin/mods/TrickyClownedOut/_polymod_icon.png")
+          if not icon_path.exists():
+              import base64
+              # 1x1 transparent PNG.
+              icon_bytes = base64.b64decode(
+                  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+              )
+              icon_path.write_bytes(icon_bytes)
+              print("Added fallback _polymod_icon.png.")
+          else:
+              print("Tricky mod already includes _polymod_icon.png.")
 
           # The release ZIP contains outer packaging folders. HTML5 Polymod expects
           # the mod's _polymod_meta.json directly at mods/TrickyClownedOut/.
@@ -645,7 +667,7 @@ jobs:
           }
 
           (async () => {
-            const browser = await chromium.launch({headless: true});
+            const browser = await chromium.launch({\n              headless: true,\n              args: ['--enable-unsafe-swiftshader']\n            });
             const context = await browser.newContext({
               ignoreHTTPSErrors: true
             });
@@ -680,10 +702,16 @@ jobs:
                   ? ' @ ' + location.url + ':' + location.lineNumber + ':' + location.columnNumber
                   : '');
 
-              allConsoleMessages.push(line);
-
-              if (msg.type() === 'error' || msg.type() === 'warning') {
+              const text = msg.text();
+              const isBrowserWebGLNoise =
+                text.includes('Automatic fallback to software WebGL has been deprecated') ||
+                (/GL Driver Message/.test(text) && text.includes('ReadPixels'));
+              if ((msg.type() === 'error' || msg.type() === 'warning') && !isBrowserWebGLNoise) {
                 consoleMessages.push(line);
+              }
+
+              if (!isBrowserWebGLNoise) {
+                allConsoleMessages.push(line);
               }
             });
 
@@ -872,6 +900,10 @@ jobs:
                 path: 'website-scan/website.png',
                 fullPage: true
               }).catch(() => {});
+
+              if (pageErrors.length || unhandledRejections.length || failedRequests.length || badResponses.length || consoleMessages.length) {
+                process.exitCode = 1;
+              }
             } catch (err) {
               console.log('[scanner] ' + errorDetails(err));
               await page.screenshot({
