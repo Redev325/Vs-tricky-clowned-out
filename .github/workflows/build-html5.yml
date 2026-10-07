@@ -253,8 +253,76 @@ jobs:
               raise SystemExit("Could not find Polymod loadScriptsAsync setting")
           if sync_line not in handler_script_text:
               handler_script_text = handler_script_text.replace(async_line, sync_line, 1)
-              handler_script.write_text(handler_script_text, encoding="utf-8")
-          print("Made Tricky mod script loading synchronous for HTML5.")
+
+          # FNF 0.8.6 already performs a global scripted-class registration pass,
+          # but on this HTML5 ZIP filesystem the Tricky-only classes are not
+          # appearing in the interpreter before InitState builds its caches.
+          # Register the missing Tricky state/module scripts explicitly here,
+          # before loadModsByDir() returns and before InitState.setupShit() runs.
+          runtime_anchor = """    if (loadedModList == null)
+    {
+"""
+          runtime_insertion = """    #if html5
+    @:privateAccess
+    {
+      var registeredClasses:Array<String> = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();
+
+      var trickyScriptPaths:Array<String> =
+        polymod.Polymod.listModFiles(polymod.backends.PolymodAssets.PolymodAssetType.TEXT);
+
+      for (scriptPath in trickyScriptPaths)
+      {
+        var normalizedPath:String = scriptPath.toLowerCase();
+
+        if (!normalizedPath.endsWith('.hxc') && !normalizedPath.endsWith('.hx')) continue;
+        if (!normalizedPath.contains('/scripts/states/') && !normalizedPath.contains('/scripts/modules/')) continue;
+
+        var fileName:String = normalizedPath.substring(normalizedPath.lastIndexOf('/') + 1);
+        var expectedClassName:String = fileName.substring(0, fileName.lastIndexOf('.'));
+
+        var alreadyRegistered:Bool = false;
+        for (className in registeredClasses)
+        {
+          if (className == expectedClassName)
+          {
+            alreadyRegistered = true;
+            break;
+          }
+        }
+
+        if (!alreadyRegistered)
+        {
+          trace('Registering missing Tricky script class directly: ' + scriptPath);
+          polymod.hscript._internal.PolymodScriptClass.registerScriptClassByPath(scriptPath);
+          registeredClasses = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();
+        }
+      }
+
+      var hasTrickyBoot:Bool = false;
+      for (className in registeredClasses)
+      {
+        if (className == 'TrickyBootScreenState')
+        {
+          hasTrickyBoot = true;
+          break;
+        }
+      }
+
+      trace('TrickyBootScreenState registered before InitState: ' + hasTrickyBoot);
+    }
+    #end
+
+    if (loadedModList == null)
+    {
+"""
+
+if runtime_insertion not in handler_script_text:
+              if runtime_anchor not in handler_script_text:
+                  raise SystemExit("Could not find Polymod post-init insertion anchor")
+              handler_script_text = handler_script_text.replace(runtime_anchor, runtime_insertion, 1)
+
+          handler_script.write_text(handler_script_text, encoding="utf-8")
+          print("Made Tricky mod script loading synchronous and explicitly registered missing Tricky scripts for HTML5.")
 
           main = Path("source/Main.hx")
           main_text = main.read_text(encoding="utf-8")
@@ -266,33 +334,6 @@ jobs:
               main_text = main_text.replace(main_anchor, main_replacement, 1)
               main.write_text(main_text, encoding="utf-8")
           print("Forced TrickyClownedOut from Main.hx.")
-
-          # Polymod's global scripted-class pass is not reliably exposing the
-          # Tricky boot state on this HTML5 build. Register that state script
-          # explicitly after the mod has been initialized, using the same
-          # interpreter registry that scriptInit() reads.
-          post_load = """    #if html5
-    @:privateAccess
-    var trickyScriptFiles = polymod.Polymod.listModFiles(polymod.backends.PolymodAssets.PolymodAssetType.TEXT);
-    for (modFile in trickyScriptFiles)
-    {
-      if (modFile.toLowerCase().endsWith('scripts/states/trickybootscreen.hxc'))
-      {
-        trace('Registering TrickyBootScreenState directly from mod file: ' + modFile);
-        @:privateAccess
-        polymod.hscript._internal.PolymodScriptClass.registerScriptClassByPath(modFile);
-      }
-    }
-    @:privateAccess
-    var trickyClasses = polymod.hscript._internal.PolymodScriptClass.listScriptClasses();
-    trace('Registered scripted classes containing "Tricky": ' + [for (name in trickyClasses) if (name.toLowerCase().contains('tricky')) name]);
-    #end"""
-          post_load = post_load.replace("\n", "\n          ")
-          main_marker = "          print(\"Forced TrickyClownedOut from Main.hx.\")"
-          if "Registering TrickyBootScreenState directly from mod file" not in main_text:
-              main_text = main_text.replace(main_marker, main_marker + "\n\n" + post_load, 1)
-              main.write_text(main_text, encoding="utf-8")
-          print("Added direct Tricky boot-state script registration on HTML5.")
 
           # The stock scrollMenu MP3 is unavailable from the v0.8.6 source payload
           # on this HTML5 build and causes a live HTTP 503 when the stock menu tries
