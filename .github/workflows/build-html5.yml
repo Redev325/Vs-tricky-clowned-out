@@ -171,15 +171,53 @@ jobs:
                   raise SystemExit("Could not find TitleState import in InitState.hx")
               init_text = init_text.replace(title_import, title_import + "\n" + init_import, 1)
 
-          normal_start_anchor = "      FlxG.switchState(() -> new TitleState());"
-          normal_start_replacement = "      FlxG.switchState(() -> ScriptedMusicBeatState.init('TrickyBootScreenState'));"
+          # Replace only the final normal-launch branch. Other TitleState
+          # fallbacks are for debug/chart-launch paths and must remain intact.
+          normal_start_anchor = """    else
+    {
+      #if mobile
+      funkin.mobile.util.FNFCProvider.onFNFCOpen.add(function(fnfcFile:String)
+      {
+        flixel.tweens.FlxTween.globalManager.clear();
+        flixel.util.FlxTimer.globalManager.clear();
+        @:nullSafety(Off)
+        if (FlxG.sound.music != null)
+        {
+          FlxG.sound.music.destroy();
+          FlxG.sound.music = null;
+        }
+
+        FlxG.switchState(() -> new ChartPlaytestMenu(fnfcFile));
+      });
+
+      final fnfcFile = funkin.mobile.util.FNFCProvider.queryFNFC();
+      if (fnfcFile != null)
+      {
+        trace('launching FNFC from $fnfcFile');
+        FlxG.switchState(() -> new ChartPlaytestMenu(fnfcFile));
+      }
+      else
+      {
+        FlxG.switchState(() -> new TitleState());
+      }
+      #else
+      FlxG.switchState(() -> new TitleState());
+      #end
+    }
+  }"""
+
+          normal_start_replacement = normal_start_anchor.replace(
+              "FlxG.switchState(() -> new TitleState());\n      #end\n    }",
+              "FlxG.switchState(() -> ScriptedMusicBeatState.init('TrickyBootScreenState'));\n      #end\n    }",
+              1
+          )
           if normal_start_anchor not in init_text:
-              raise SystemExit("Could not find normal InitState TitleState launch")
-          if normal_start_replacement not in init_text:
+              raise SystemExit("Could not find final normal InitState TitleState launch block")
+          if "ScriptedMusicBeatState.init('TrickyBootScreenState')" not in init_text:
               init_text = init_text.replace(normal_start_anchor, normal_start_replacement, 1)
 
           init_state.write_text(init_text, encoding="utf-8")
-          print("Patched InitState to launch TrickyBootScreenState after the touch-to-play preloader.")
+          print("Patched the final normal InitState launch to TrickyBootScreenState after the touch-to-play preloader.")
 
           handler_script = Path("source/funkin/modding/PolymodHandler.hx")
           handler_script_text = handler_script.read_text(encoding="utf-8")
