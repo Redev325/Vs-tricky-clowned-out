@@ -123,6 +123,21 @@ jobs:
             done
           } | tee "$LOG"
 
+      - name: Diagnose Tricky boot screen
+        run: |
+          set -euo pipefail
+          echo "=== Tricky boot-screen source diagnostics ==="
+          mapfile -t BOOT_FILES < <(find "$MOD_DIR/scripts" -type f \( -iname '*TrickyBootScreen*' -o -iname '*BootScreen*' \) -print | sort)
+          if [ "${#BOOT_FILES[@]}" -eq 0 ]; then
+            echo "No boot-screen script file found under $MOD_DIR/scripts"
+          else
+            for file in "${BOOT_FILES[@]}"; do
+              echo "----- $file -----"
+              nl -ba "$file" | sed -n '1,320p'
+              echo
+            done
+          fi
+
       - name: Checkout matching Friday Night Funkin source
         run: |
           set -euo pipefail
@@ -161,6 +176,9 @@ jobs:
               raise SystemExit("Could not find PolymodHandler.buildImports()")
 
           aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\n    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);\n    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\n    // Tricky's module scripts use `extends Module`. Map that name to FNF's\n    // scriptable module bridge so HScript can legally extend it on HTML5.\n    Polymod.addImportAlias('Module', funkin.modding.module.ScriptedModule);\n    Polymod.addImportAlias('funkin.modding.module.Module', funkin.modding.module.ScriptedModule);\n"""
+    Polymod.addImportAlias('Save', funkin.save.Save);
+    Polymod.addImportAlias('FlxTweenManager', flixel.tweens.FlxTweenManager);
+    Polymod.addImportAlias('FunkinSprite', funkin.graphics.FunkinSprite);
 
           if ("animate.internal.elements.FlxSpriteElement" not in text
               or "funkin.util.TouchUtil" not in text
@@ -310,6 +328,16 @@ jobs:
               handler_script_text = handler_script_text.replace(runtime_marker, runtime_insertion + runtime_marker, 1)
 
           handler_script.write_text(handler_script_text, encoding="utf-8")
+
+          # The base Module.onStateChangeEnd hook is a no-op, but this
+          # legacy HScript module cannot resolve its generated __super_ hook on HTML5.
+          redirector_scripts = list(Path("../extracted").glob("**/scripts/modules/TrickyMenuRedirectorModule.hxc"))
+          for script in redirector_scripts:
+              script_text = script.read_text(encoding="utf-8")
+              old_super = "        super.onStateChangeEnd(event);"
+              if old_super in script_text:
+                  script.write_text(script_text.replace(old_super, "", 1), encoding="utf-8")
+                  print(f"Removed unsupported HScript superclass call from {script}")
           print("Made Tricky mod script loading synchronous and added explicit HTML5 registration for missing state/module scripts.")
 
           main = Path("source/Main.hx")
