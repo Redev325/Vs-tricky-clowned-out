@@ -251,13 +251,13 @@ jobs:
           # preloader so the game can finish initialization instead of aborting
           # on a host-side 503 before the Tricky mod starts.
           web_exclude_anchor = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg"];'
-          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "*.mp3", "*.wav", "*.mp4", "*.webm", "data/songs/spookeez/spookeez-chart.json", "images/freeplay/albumRoll/*.xml", "images/freeplay/albumRoll/volume4-text.xml"];'
+          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "*.mp3", "*.wav", "*.mp4", "*.webm", "*.hxc", "*.hx", "data/songs/spookeez/spookeez-chart.json", "images/freeplay/albumRoll/*.xml", "images/freeplay/albumRoll/volume4-text.xml"];';
           if web_exclude_anchor not in project_text:
               raise SystemExit("Could not find EXCLUDE_ASSETS_WEB in project.hxp")
           if web_exclude_replacement not in project_text:
               project_text = project_text.replace(web_exclude_anchor, web_exclude_replacement, 1)
               project.write_text(project_text, encoding="utf-8")
-          print("Excluded the failing stock spookeez chart and unused stock Freeplay album-roll XMLs from the HTML5 preloader.")
+          print("Excluded unsupported stock HScript sources plus the failing stock spookeez chart and unused stock Freeplay album-roll XMLs from the HTML5 preloader.")
 
           handler_script = Path("source/funkin/modding/PolymodHandler.hx")
           handler_script_text = handler_script.read_text(encoding="utf-8")
