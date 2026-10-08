@@ -175,7 +175,7 @@ jobs:
           if anchor not in text:
               raise SystemExit("Could not find PolymodHandler.buildImports()")
 
-          aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\n    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);\n    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\n    // Tricky's module scripts use `extends Module`. Map that name to FNF's\n    // scriptable module bridge so HScript can legally extend it on HTML5.\n    Polymod.addImportAlias('Module', funkin.modding.module.ScriptedModule);\n    Polymod.addImportAlias('funkin.modding.module.Module', funkin.modding.module.ScriptedModule);\n"""
+          aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\n    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);\n    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\n    // Bare legacy script names are resolved from HScript's default-import table.\n    // Import aliases alone do not expose unqualified names like Save/FunkinSprite.\n    Polymod.addDefaultImport(funkin.save.Save);\n    Polymod.addDefaultImport(flixel.tweens.FlxTweenManager);\n    Polymod.addDefaultImport(funkin.graphics.FunkinSprite);\n    // Tricky's module scripts use `extends Module`. Map that name to FNF's\n    // scriptable module bridge so HScript can legally extend it on HTML5.\n    Polymod.addImportAlias('Module', funkin.modding.module.ScriptedModule);\n    Polymod.addImportAlias('funkin.modding.module.Module', funkin.modding.module.ScriptedModule);\n"""
 
           if ("animate.internal.elements.FlxSpriteElement" not in text
               or "funkin.util.TouchUtil" not in text
@@ -399,7 +399,7 @@ jobs:
               compiled.write_text(compiled_text, encoding="utf-8")
           PY
 
-          grep -n -A8 -B2 "legacy mod scripts" source/funkin/modding/PolymodHandler.hx
+          grep -n -A14 -B2 "legacy mod scripts" source/funkin/modding/PolymodHandler.hx\n          grep -Fq "Polymod.addDefaultImport(funkin.save.Save);" source/funkin/modding/PolymodHandler.hx\n          grep -Fq "Polymod.addDefaultImport(flixel.tweens.FlxTweenManager);" source/funkin/modding/PolymodHandler.hx\n          grep -Fq "Polymod.addDefaultImport(funkin.graphics.FunkinSprite);" source/funkin/modding/PolymodHandler.hx
 
       - name: Install Haxe
         uses: krdlab/setup-haxe@v2
