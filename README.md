@@ -5,6 +5,7 @@ Both thumbnails by Redev325 using some assets from tricky mod and hand drawn sha
 <img width="1095" height="647" alt="2026_10_07_0vq_Kleki" src="https://github.com/user-attachments/assets/496691ec-9566-46ec-a724-a47cd42a8fc4" />
 
 <img width="1150" height="647" alt="2026_10_05_0kk_Kleki" src="https://github.com/user-attachments/assets/ec1b0106-7d7a-41fa-bf8e-21cd8eeed6f4" />
+
 # Web port
 Web port by Redev325 or smth
 
