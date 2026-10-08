@@ -251,7 +251,7 @@ jobs:
           # preloader so the game can finish initialization instead of aborting
           # on a host-side 503 before the Tricky mod starts.
           web_exclude_anchor = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg"];'
-          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "data/songs/spookeez/spookeez-chart.json", "images/freeplay/albumRoll/*.xml", "images/freeplay/albumRoll/volume4-text.xml"];'
+          web_exclude_replacement = '  static final EXCLUDE_ASSETS_WEB:Array<String> = ["*.ogg", "*.mp3", "*.wav", "*.mp4", "*.webm", "data/songs/spookeez/spookeez-chart.json", "images/freeplay/albumRoll/*.xml", "images/freeplay/albumRoll/volume4-text.xml"];'
           if web_exclude_anchor not in project_text:
               raise SystemExit("Could not find EXCLUDE_ASSETS_WEB in project.hxp")
           if web_exclude_replacement not in project_text:
@@ -703,10 +703,7 @@ jobs:
 
           const url = process.env.GAME_SITE_URL;
           const customDomainUrl = process.env.SITE_URL;
-          const targetAsset = new URL(
-            '/assets/data/songs/bopeebo/bopeebo-metadata-pico.json',
-            url
-          ).toString();
+          let targetAsset = null;
 
           const consoleMessages = [];
           const allConsoleMessages = [];
@@ -766,6 +763,10 @@ jobs:
               const isBrowserWebGLNoise =
                 text.includes('Automatic fallback to software WebGL has been deprecated') ||
                 (/GL Driver Message/.test(text) && text.includes('ReadPixels'));
+              if (text.includes('[window.unhandledrejection]')) {
+                unhandledRejections.push(line);
+              }
+
               if ((msg.type() === 'error' || msg.type() === 'warning') && !isBrowserWebGLNoise) {
                 consoleMessages.push(line);
               }
@@ -848,6 +849,16 @@ jobs:
               console.log('HTTP status: ' + (response ? response.status() : 'unknown'));
               console.log('HTML5 canvas count: ' +
                 await page.locator('canvas').count().catch(() => 0));
+              targetAsset = new URL(
+                '/assets/data/songs/bopeebo/bopeebo-metadata-pico.json',
+                page.url()
+              ).toString();
+              const targetModZip = new URL(
+                '/mods/TrickyClownedOut.zip',
+                page.url()
+              ).toString();
+              console.log('Resolved same-origin target asset: ' + targetAsset);
+              console.log('Resolved same-origin Tricky mod ZIP: ' + targetModZip);
 
               // Let FNF initialize, load scripts, and execute the mod long enough
               // to catch delayed runtime dialogs.
@@ -907,14 +918,25 @@ jobs:
               console.log('=== Target asset retry test ===');
               for (let attempt = 1; attempt <= 3; attempt++) {
                 try {
-                  const result = await page.evaluate(async assetUrl => {
-                    const response = await fetch(
-                      assetUrl + '?ci_diagnostic=' + Date.now() + '_' + Math.random(),
-                      {
-                        cache: 'no-store',
-                        credentials: 'include'
-                      }
-                    );
+                  const result = await context.request.get(
+                    targetAsset + '?ci_diagnostic=' + Date.now() + '_' + Math.random(),
+                    {
+                      timeout: 30000,
+                      headers: {'Cache-Control': 'no-cache'}
+                    }
+                  );
+
+                  let bodyPreview = '';
+                  try {
+                    bodyPreview = (await result.body()).toString('utf8').slice(0, 300);
+                  } catch {}
+
+                  console.log(
+                    'Attempt ' + attempt +
+                    ': HTTP ' + result.status() + ' ' + result.statusText() +
+                    ', content-type=' + result.headers()['content-type'] +
+                    ', body-preview=' + JSON.stringify(bodyPreview)
+                  )
 
                     let bodyPreview = '';
                     try {
@@ -949,6 +971,29 @@ jobs:
               console.log('=== Page state ===');
               console.log('Final URL: ' + page.url());
               console.log('Title: ' + await page.title().catch(() => ''));
+
+              console.log('=== Tricky mod ZIP range test ===');
+              try {
+                const zipResponse = await context.request.get(targetModZip, {
+                  timeout: 60000,
+                  headers: {
+                    Range: 'bytes=0-1',
+                    'Cache-Control': 'no-cache'
+                  }
+                });
+                console.log(
+                  'Mod ZIP HTTP ' + zipResponse.status() + ' ' + zipResponse.statusText() +
+                  ', content-length=' + (zipResponse.headers()['content-length'] || 'unknown') +
+                  ', content-range=' + (zipResponse.headers()['content-range'] || 'none') +
+                  ', content-type=' + (zipResponse.headers()['content-type'] || 'unknown')
+                );
+                await zipResponse.body().catch(() => Buffer.alloc(0));
+                if (zipResponse.status() >= 400) {
+                  failedRequests.push('[mod-zip-test] HTTP ' + zipResponse.status() + ' ' + targetModZip);
+                }
+              } catch (error) {
+                failedRequests.push('[mod-zip-test] ' + targetModZip + ' :: ' + errorDetails(error));
+              }
 
               console.log('=== Counts ===');
               console.log('console errors/warnings: ' + consoleMessages.length);
@@ -998,7 +1043,8 @@ jobs:
                 fullPage: true
               }).catch(() => {});
 
-              if (pageErrors.length || unhandledRejections.length || failedRequests.length || badResponses.length || consoleMessages.length) {
+              if (pageErrors.length || unhandledRejections.length || failedRequests.length ||
+                  badResponses.length || consoleMessages.length || dialogs.length) {
                 process.exitCode = 1;
               }
             } catch (err) {
@@ -1020,7 +1066,8 @@ jobs:
           {
             echo "## Tricky Clowned Out website scan"
             echo ""
-            echo "URL: $SITE_URL"
+            echo "GAME URL: $GAME_SITE_URL"
+            echo "CUSTOM DOMAIN: $SITE_URL"
             echo ""
             cat website-scan/browser-errors.txt
           } >> "$GITHUB_STEP_SUMMARY"
