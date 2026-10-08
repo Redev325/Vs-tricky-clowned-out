@@ -1,10 +1,10 @@
 name: Build Tricky Clowned Out HTML5
 
 on:
+  # README.md and other repository documentation changes must never replace
+  # the published game site. The site is rebuilt only manually or from a
+  # published game release.
   workflow_dispatch:
-  push:
-    paths:
-      - ".github/workflows/build-html5.yml"
   release:
     types: [published]
 
@@ -629,6 +629,8 @@ jobs:
         working-directory: funkin
         run: |
           set -euo pipefail
+          # Publish only the generated HTML5 game directory. Never copy
+          # README.md or any other repository-root documentation into Pages.
           rm -rf "$GITHUB_WORKSPACE/site"
           mkdir -p "$GITHUB_WORKSPACE/site"
 
