@@ -175,7 +175,7 @@ jobs:
           if anchor not in text:
               raise SystemExit("Could not find PolymodHandler.buildImports()")
 
-          aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\n    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);\n    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\n    // Bare legacy script names are resolved from HScript's default-import table.\n    // Import aliases alone do not expose unqualified names like Save/FunkinSprite.\n    Polymod.addDefaultImport(funkin.save.Save);\n    // FlxTweenManager is a secondary class declared inside FlxTween.hx.\n    Polymod.addDefaultImport(flixel.tweens.FlxTween.FlxTweenManager);\n    Polymod.addDefaultImport(funkin.graphics.FunkinSprite);\n    // Tricky's module scripts use `extends Module`. Map that name to FNF's\n    // scriptable module bridge so HScript can legally extend it on HTML5.\n    Polymod.addImportAlias('Module', funkin.modding.module.ScriptedModule);\n    Polymod.addImportAlias('funkin.modding.module.Module', funkin.modding.module.ScriptedModule);\n"""
+          aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\n    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);\n    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\n    // Bare legacy script names are resolved from HScript's default-import table.\n    // Import aliases alone do not expose unqualified names like Save/FunkinSprite.\n    Polymod.addDefaultImport(funkin.save.Save);\n    // FlxTweenManager is a secondary class declared inside FlxTween.hx.\n    Polymod.addDefaultImport(flixel.tweens.FlxTween.FlxTweenManager);\n    Polymod.addDefaultImport(funkin.graphics.FunkinSprite);\n    Polymod.addDefaultImport(funkin.play.PlayState);\n    Polymod.addDefaultImport(funkin.play.PlayStatePlaylist);\n    Polymod.addDefaultImport(funkin.audio.FunkinSound);\n    Polymod.addDefaultImport(flixel.tweens.FlxTween);\n    Polymod.addDefaultImport(flixel.tweens.FlxEase);\n    Polymod.addDefaultImport(flixel.FlxColor);\n    Polymod.addDefaultImport(flixel.util.FlxTimer);\n    // Tricky's module scripts use `extends Module`. Map that name to FNF's\n    // scriptable module bridge so HScript can legally extend it on HTML5.\n    Polymod.addImportAlias('Module', funkin.modding.module.ScriptedModule);\n    Polymod.addImportAlias('funkin.modding.module.Module', funkin.modding.module.ScriptedModule);\n"""
 
           if ("animate.internal.elements.FlxSpriteElement" not in text
               or "funkin.util.TouchUtil" not in text
@@ -326,6 +326,75 @@ jobs:
 
           handler_script.write_text(handler_script_text, encoding="utf-8")
 
+          # Fix legacy Tricky script constructs that FNF 0.8.6 HScript cannot
+          # resolve correctly on HTML5 even though the underlying native types exist.
+          module_script_fixes = {
+              "scripts/modules/TrickyPussyMode.hx": [
+                  ('!Save.instance.modOptions.exists(TrickyPussyMode.SAVE_KEY_PUSSYMODE)',
+                   'Save.instance.modOptions.get(TrickyPussyMode.SAVE_KEY_PUSSYMODE) == null'),
+                  ('!Save.instance.modOptions.exists("shouldUsePussyMode")',
+                   'Save.instance.modOptions.get("shouldUsePussyMode") == null')
+              ],
+              "scripts/modules/TrickyMenuToggle.hxc": [
+                  ('!Save.instance.modOptions.exists(TrickyMenuToggle.SAVE_KEY_TRICKYMENU)',
+                   'Save.instance.modOptions.get(TrickyMenuToggle.SAVE_KEY_TRICKYMENU) == null'),
+                  ('!Save.instance.modOptions.exists("shouldUseTrickyMenus")',
+                   'Save.instance.modOptions.get("shouldUseTrickyMenus") == null')
+              ],
+              "scripts/modules/TrickyMenuRedirectorModule.hxc": [
+                  ('Save.instance.modOptions.exists("shouldUseTrickyMenus")',
+                   'Save.instance.modOptions.get("shouldUseTrickyMenus") != null')
+              ],
+              "scripts/modules/TrickyExpurgationEvents.hxc": [
+                  ('import funkin.play.GameOverSubState;',
+                   'import funkin.play.GameOverSubState;\\nimport funkin.play.PlayState;')
+              ],
+              "scripts/modules/TrickyHUDModule.hxc": [
+                  ('import funkin.Preferences;',
+                   'import funkin.Preferences;\\nimport funkin.play.PlayState;')
+              ]
+          }
+
+          fixed_files = 0
+          for relative_path, replacements in module_script_fixes.items():
+              matches = list(Path("../extracted").glob("**/" + relative_path))
+              for script in matches:
+                  script_text = script.read_text(encoding="utf-8")
+                  new_text = script_text
+                  for old_text, new_text_value in replacements:
+                      new_text = new_text.replace(old_text, new_text_value)
+                  # Avoid counting a file as fixed when its replacements were already applied.
+                  if new_text != script_text:
+                      script.write_text(new_text, encoding="utf-8")
+                      fixed_files += 1
+                      print(f"Patched legacy HScript compatibility in {script}")
+
+          # The Tricky boot screen's FlxSprite.screenCenter() call is not exposed
+          # reliably through this HScript runtime. Preserve identical visual centering
+          # by calculating the centered position explicitly.
+          for script in Path("../extracted").glob("**/scripts/states/TrickyBootScreen.hxc"):
+              script_text = script.read_text(encoding="utf-8")
+              old_center = "        image.screenCenter();"
+              new_center = "        image.setPosition((FlxG.width - image.width) * 0.5, (FlxG.height - image.height) * 0.5);"
+              if old_center in script_text:
+                  script.write_text(script_text.replace(old_center, new_center, 1), encoding="utf-8")
+                  print(f"Patched boot-screen centering in {script}")
+
+          # Replace Array.contains() usages in Tricky's song filters with indexOf().
+          # This avoids another HScript-only method-resolution failure later in gameplay.
+          for script in Path("../extracted").glob("**/scripts/**/*.hx*"):
+              script_text = script.read_text(encoding="utf-8")
+              if ".contains(PlayState.instance.currentSong.id)" in script_text:
+                  new_text = script_text.replace(
+                      "validSongs.contains(PlayState.instance.currentSong.id)",
+                      "validSongs.indexOf(PlayState.instance.currentSong.id) != -1"
+                  )
+                  if new_text != script_text:
+                      script.write_text(new_text, encoding="utf-8")
+                      print(f"Patched validSongs.contains() in {script}")
+
+          print(f"Applied targeted legacy compatibility fixes to {fixed_files} files.")
+
           # The base Module.onStateChangeEnd hook is a no-op, but this
           # legacy HScript module cannot resolve its generated __super_ hook on HTML5.
           redirector_scripts = list(Path("../extracted").glob("**/scripts/modules/TrickyMenuRedirectorModule.hxc"))
@@ -400,6 +469,11 @@ jobs:
           PY
 
           grep -n -A14 -B2 "legacy mod scripts" source/funkin/modding/PolymodHandler.hx\n          grep -Fq "Polymod.addDefaultImport(funkin.save.Save);" source/funkin/modding/PolymodHandler.hx\n          grep -Fq "Polymod.addDefaultImport(flixel.tweens.FlxTween.FlxTweenManager);" source/funkin/modding/PolymodHandler.hx\n          grep -Fq "Polymod.addDefaultImport(funkin.graphics.FunkinSprite);" source/funkin/modding/PolymodHandler.hx
+          grep -Fq "Polymod.addDefaultImport(funkin.play.PlayState);" source/funkin/modding/PolymodHandler.hx
+          grep -Fq "Polymod.addDefaultImport(funkin.play.PlayStatePlaylist);" source/funkin/modding/PolymodHandler.hx
+          grep -Fq "Polymod.addDefaultImport(funkin.audio.FunkinSound);" source/funkin/modding/PolymodHandler.hx
+          grep -Fq "Polymod.addDefaultImport(flixel.tweens.FlxTween);" source/funkin/modding/PolymodHandler.hx
+          grep -Fq "Polymod.addDefaultImport(flixel.tweens.FlxEase);" source/funkin/modding/PolymodHandler.hx
 
       - name: Install Haxe
         uses: krdlab/setup-haxe@v2
