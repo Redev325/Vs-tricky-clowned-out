@@ -191,8 +191,16 @@ jobs:
           # when a legacy mod first asks for Save.instance.modOptions.
           save_path = Path("source/funkin/save/Save.hx")
           save_text = save_path.read_text(encoding="utf-8")
-          old_getter = "  function get_modOptions():Map<String, Dynamic>\n  {\n    return data.mods.modOptions;\n  }"
-          new_getter = "  @:nullSafety(Off)\n  function get_modOptions():Map<String, Dynamic>\n  {\n    if (data.mods.modOptions == null) data.mods.modOptions = [];\n    return data.mods.modOptions;\n  }"
+          old_getter = """  function get_modOptions():Map<String, Dynamic>
+          {
+            return data.mods.modOptions;
+          }"""
+          new_getter = """  @:nullSafety(Off)
+          function get_modOptions():Map<String, Dynamic>
+          {
+            if (data.mods.modOptions == null) data.mods.modOptions = [];
+            return data.mods.modOptions;
+          }"""
           if old_getter not in save_text and new_getter not in save_text:
               raise SystemExit("Could not find Save.get_modOptions() to initialize missing mod options.")
           if old_getter in save_text:
