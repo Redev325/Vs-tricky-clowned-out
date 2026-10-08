@@ -369,6 +369,18 @@ jobs:
                       fixed_files += 1
                       print(f"Patched legacy HScript compatibility in {script}")
 
+          # FNF 0.8.6 Module.onSongLoaded() requires the event argument.
+          # The legacy Expurgation script omitted it.
+          song_super_fixed = 0
+          for script in Path("../extracted").glob("**/scripts/**/*.hx*"):
+              script_text = script.read_text(encoding="utf-8")
+              new_text = script_text.replace("super.onSongLoaded();", "super.onSongLoaded(event);")
+              if new_text != script_text:
+                  script.write_text(new_text, encoding="utf-8")
+                  song_super_fixed += 1
+                  print(f"Fixed missing event argument in super.onSongLoaded() for {script}")
+          print(f"Fixed super.onSongLoaded() in {song_super_fixed} script(s).")
+
           # The Tricky boot screen's FlxSprite.screenCenter() call is not exposed
           # reliably through this HScript runtime. Preserve identical visual centering
           # by calculating the centered position explicitly.
