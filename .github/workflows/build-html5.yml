@@ -680,6 +680,7 @@ jobs:
     continue-on-error: false
     env:
       SITE_URL: https://clownedoutproject.devs.surf/
+      GAME_SITE_URL: https://redev325.github.io/Vs-tricky-clowned-out/
     steps:
       - name: Install Node.js
         uses: actions/setup-node@v4
@@ -700,7 +701,8 @@ jobs:
           node > website-scan/browser-errors.txt <<'NODE'
           const { chromium } = require('playwright');
 
-          const url = process.env.SITE_URL;
+          const url = process.env.GAME_SITE_URL;
+          const customDomainUrl = process.env.SITE_URL;
           const targetAsset = new URL(
             '/assets/data/songs/bopeebo/bopeebo-metadata-pico.json',
             url
@@ -801,8 +803,42 @@ jobs:
 
             try {
               console.log('=== Tricky Clowned Out Website Error Scan ===');
-              console.log('URL: ' + url);
+              console.log('GAME URL: ' + url);
+              console.log('CUSTOM DOMAIN: ' + customDomainUrl);
               console.log('Started: ' + new Date().toISOString());
+
+              // The Devs.Surf hostname must serve the same game build. Check it
+              // separately so a README/DNS mismatch cannot make the game scan
+              // falsely report zero runtime errors.
+              const domainPage = await context.newPage();
+              try {
+                const domainResponse = await domainPage.goto(customDomainUrl, {
+                  waitUntil: 'domcontentloaded',
+                  timeout: 60000
+                });
+                const domainTitle = await domainPage.title().catch(() => '');
+                const domainText = await domainPage.locator('body').innerText().catch(() => '');
+                console.log(
+                  'Custom domain HTTP status: ' +
+                  (domainResponse ? domainResponse.status() : 'unknown')
+                );
+                console.log('Custom domain title: ' + domainTitle);
+                console.log('Custom domain has HTML5 canvas: ' +
+                  String(await domainPage.locator('canvas').count().then(n => n > 0).catch(() => false)));
+                const looksLikeReadme =
+                  domainTitle === 'Vs-tricky-clowned-out' &&
+                  /This mod was build using haxe/i.test(domainText);
+                if (looksLikeReadme) {
+                  console.log('::error::Custom domain is serving the repository README instead of the HTML5 game.');
+                  console.log('Fix the Devs.Surf DNS target so it points to the GitHub Pages site.');
+                  process.exitCode = 1;
+                }
+              } catch (error) {
+                console.log('Custom domain check failed: ' + errorDetails(error));
+                process.exitCode = 1;
+              } finally {
+                await domainPage.close().catch(() => {});
+              }
 
               const response = await page.goto(url, {
                 waitUntil: 'domcontentloaded',
@@ -810,9 +846,12 @@ jobs:
               });
 
               console.log('HTTP status: ' + (response ? response.status() : 'unknown'));
+              console.log('HTML5 canvas count: ' +
+                await page.locator('canvas').count().catch(() => 0));
 
-              // Let FNF initialize, load scripts, and execute the mod.
-              await page.waitForTimeout(10000);
+              // Let FNF initialize, load scripts, and execute the mod long enough
+              // to catch delayed runtime dialogs.
+              await page.waitForTimeout(30000);
 
               console.log('=== Keyboard interaction test ===');
               const keyboardSequence = [
