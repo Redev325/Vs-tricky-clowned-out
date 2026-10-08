@@ -937,6 +937,7 @@ jobs:
                     ', content-type=' + result.headers()['content-type'] +
                     ', body-preview=' + JSON.stringify(bodyPreview)
                   );
+
                   if (result.status() >= 400) {
                     failedRequests.push(
                       '[target-asset-test] HTTP ' + result.status() + ' ' + targetAsset
@@ -1034,3 +1035,50 @@ jobs:
                   badResponses.length || consoleMessages.length || dialogs.length) {
                 process.exitCode = 1;
               }
+            } catch (err) {
+              console.log('[scanner] ' + errorDetails(err));
+              await page.screenshot({
+                path: 'website-scan/website-failure.png',
+                fullPage: true
+              }).catch(() => {});
+            } finally {
+              await browser.close();
+            }
+          })();
+          NODE
+
+      - name: Write browser errors to Actions summary
+        if: always()
+        run: |
+          set -u
+          {
+            echo "## Tricky Clowned Out website scan"
+            echo ""
+            echo "GAME URL: $GAME_SITE_URL"
+            echo "CUSTOM DOMAIN: $SITE_URL"
+            echo ""
+            cat website-scan/browser-errors.txt
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          echo "=== Browser error report ==="
+          cat website-scan/browser-errors.txt
+
+      - name: Upload website error report
+        if: always()
+        uses: actions/upload-artifact@v6
+        with:
+          name: tricky-clowned-out-website-errors
+          path: website-scan
+          if-no-files-found: warn
+
+  deploy:
+    needs: build
+    if: success()
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
