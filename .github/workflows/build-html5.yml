@@ -176,9 +176,9 @@ jobs:
               raise SystemExit("Could not find PolymodHandler.buildImports()")
 
           aliases = """\n    // Compatibility aliases for legacy mod scripts.\n    // These classes are present in the pinned FNF v0.8.7 dependencies,\n    // but explicit aliases make Polymod's HScript import resolver find them reliably.\n    Polymod.addImportAlias('flixel.util.FlxSort', flixel.util.FlxSort);\n    Polymod.addImportAlias('animate.internal.elements.FlxSpriteElement', animate.internal.elements.FlxSpriteElement);\n    Polymod.addImportAlias('funkin.util.TouchUtil', funkin.util.TouchUtil);\n    Polymod.addImportAlias('funkin.util.FlxTweenUtil', funkin.util.FlxTweenUtil);\n    // Tricky's module scripts use `extends Module`. Map that name to FNF's\n    // scriptable module bridge so HScript can legally extend it on HTML5.\n    Polymod.addImportAlias('Module', funkin.modding.module.ScriptedModule);\n    Polymod.addImportAlias('funkin.modding.module.Module', funkin.modding.module.ScriptedModule);\n"""
-    Polymod.addImportAlias('Save', funkin.save.Save);
-    Polymod.addImportAlias('FlxTweenManager', flixel.tweens.FlxTweenManager);
-    Polymod.addImportAlias('FunkinSprite', funkin.graphics.FunkinSprite);
+          Polymod.addImportAlias('Save', funkin.save.Save);
+          Polymod.addImportAlias('FlxTweenManager', flixel.tweens.FlxTweenManager);
+          Polymod.addImportAlias('FunkinSprite', funkin.graphics.FunkinSprite);
 
           if ("animate.internal.elements.FlxSpriteElement" not in text
               or "funkin.util.TouchUtil" not in text
