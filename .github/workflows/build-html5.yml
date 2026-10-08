@@ -3,8 +3,12 @@ name: Build Tricky Clowned Out HTML5
 on:
   # README.md and other repository documentation changes must never replace
   # the published game site. The site is rebuilt only manually or from a
-  # published game release.
+  # published game release. This workflow-file push trigger exists only so
+  # workflow changes can rebuild the current game site.
   workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/build-html5.yml"
   release:
     types: [published]
 
