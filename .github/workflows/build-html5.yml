@@ -508,26 +508,24 @@ jobs:
               if old_super in script_text:
                   script.write_text(script_text.replace(old_super, "", 1), encoding="utf-8")
                   print(f"Removed unsupported HScript superclass call from {script}")
-          # HScript's Std implementation on HTML5 does not expose isOfType.
-          # Replace each known state check with an exact class comparison.
+          # Keep the original HScript Std.isOfType checks. Type.getClass is not
+          # exposed by the browser HScript runtime and crashes on the first state
+          # transition, which is why the website scan kept failing.
           for script in redirector_scripts:
               script_text = script.read_text(encoding="utf-8")
-              # Type is not part of HScript's implicit imports on HTML5.
-              # Explicitly import it before calling Type.getClass below.
-              if "import Type;" not in script_text:
-                  script_text = "import Type;" + chr(10) + script_text
               new_text = script_text
               for state_class in (
                   "TitleState", "MainMenuState", "OptionsState",
                   "StickerSubState", "ResultState"
               ):
                   new_text = new_text.replace(
-                      f"Std.isOfType(event.targetState, {state_class})",
-                      f"Type.getClass(event.targetState) == {state_class}"
+                      f"Type.getClass(event.targetState) == {state_class}",
+                      f"Std.isOfType(event.targetState, {state_class})"
                   )
+              new_text = new_text.replace("import Type;" + chr(10), "")
               if new_text != script_text:
                   script.write_text(new_text, encoding="utf-8")
-                  print(f"Replaced unsupported Std.isOfType checks in {script}")
+                  print(f"Restored HScript-compatible Std.isOfType checks in {script}")
           print("Made Tricky mod script loading synchronous, registered HTML5 module scripts, and patched HScript type checks.")
 
           main = Path("source/Main.hx")
