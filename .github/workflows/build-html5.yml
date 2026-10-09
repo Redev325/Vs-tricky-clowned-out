@@ -508,7 +508,21 @@ jobs:
               if old_super in script_text:
                   script.write_text(script_text.replace(old_super, "", 1), encoding="utf-8")
                   print(f"Removed unsupported HScript superclass call from {script}")
-          print("Made Tricky mod script loading synchronous and added explicit HTML5 registration for missing state/module scripts.")
+          # HScript's Std implementation on HTML5 does not expose isOfType.
+          # Rewrite the redirector's runtime type checks to use Type.getClass,
+          # which is supported by HScript, while preserving the original branches.
+          for script in redirector_scripts:
+              script_text = script.read_text(encoding="utf-8")
+              import re
+              new_text = re.sub(
+                  r"Std\\.isOfType\\(event\\.targetState,\\s*([A-Za-z_][A-Za-z0-9_]*)\\)",
+                  r"Type.getClass(event.targetState) == \\1",
+                  script_text
+              )
+              if new_text != script_text:
+                  script.write_text(new_text, encoding="utf-8")
+                  print(f"Replaced unsupported Std.isOfType checks in {script}")
+          print("Made Tricky mod script loading synchronous, registered HTML5 module scripts, and patched HScript type checks.")
 
           main = Path("source/Main.hx")
           main_text = main.read_text(encoding="utf-8")
