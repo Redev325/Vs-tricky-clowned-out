@@ -512,6 +512,10 @@ jobs:
           # Replace each known state check with an exact class comparison.
           for script in redirector_scripts:
               script_text = script.read_text(encoding="utf-8")
+              # Type is not part of HScript's implicit imports on HTML5.
+              # Explicitly import it before calling Type.getClass below.
+              if "import Type;" not in script_text:
+                  script_text = "import Type;\\n" + script_text
               new_text = script_text
               for state_class in (
                   "TitleState", "MainMenuState", "OptionsState",
