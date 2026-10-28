@@ -508,9 +508,9 @@ jobs:
               if old_super in script_text:
                   script.write_text(script_text.replace(old_super, "", 1), encoding="utf-8")
                   print(f"Removed unsupported HScript superclass call from {script}")
-          # Keep the original HScript Std.isOfType checks. Type.getClass is not
-          # exposed by the browser HScript runtime and crashes on the first state
-          # transition, which is why the website scan kept failing.
+          # HScript's exposed Std namespace does not contain isOfType, and Type.getClass
+          # is not available to these scripts on HTML5. Use HScript's built-in "is"
+          # operator instead; its interpreter handles the type test internally.
           for script in redirector_scripts:
               script_text = script.read_text(encoding="utf-8")
               new_text = script_text
@@ -519,13 +519,19 @@ jobs:
                   "StickerSubState", "ResultState"
               ):
                   new_text = new_text.replace(
+                      f"Std.isOfType(event.targetState, {state_class})",
+                      f"(event.targetState is {state_class})"
+                  )
+                  new_text = new_text.replace(
                       f"Type.getClass(event.targetState) == {state_class}",
-                      f"Std.isOfType(event.targetState, {state_class})"
+                      f"(event.targetState is {state_class})"
                   )
               new_text = new_text.replace("import Type;" + chr(10), "")
+              if "Std.isOfType(event.targetState" in new_text or "Type.getClass(event.targetState)" in new_text:
+                  raise SystemExit(f"Unsupported HScript state type check remains in {script}")
               if new_text != script_text:
                   script.write_text(new_text, encoding="utf-8")
-                  print(f"Restored HScript-compatible Std.isOfType checks in {script}")
+                  print(f"Rewrote Tricky menu state checks to HScript 'is' operators in {script}")
           print("Made Tricky mod script loading synchronous, registered HTML5 module scripts, and patched HScript type checks.")
 
           main = Path("source/Main.hx")
