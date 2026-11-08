@@ -57,5 +57,3 @@ All respects and credits go to creators of the mod because they built it and are
 • TPM Studios – Moral Support
 
 
-[![devs.surf](https://devs.surf/badges/subdomain.svg)](https://clownedoutproject.devs.surf)
-<a href="https://devs.surf" target="_blank"><img src="https://devs.surf/badges/powered-by.svg" alt="Powered by Devs.Surf"></a>
